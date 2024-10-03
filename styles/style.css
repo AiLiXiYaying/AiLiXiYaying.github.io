@@ -1,0 +1,69 @@
+       header {
+           text-align: center;
+           font-family: "宋体";
+           font-size: 25px;
+
+       }
+
+       a {
+           text-decoration: none;
+       }
+
+
+
+       .Down {
+           text-align: center;
+           background-color: blueviolet;
+       }
+
+       h3 {
+           font-family: "kaiti";
+           font-size: 29px;
+           color: chartreuse;
+       }
+
+       .ulli {
+           list-style: none;
+       }
+
+       p {
+           color: white;
+           font-size: 25px;
+       }
+
+       h1 {
+           color: pink;
+           text-shadow: 0 0 10px pink, 0 0 20px pink, 0 0 30px red, 0 0 40px red;
+       }
+
+       span {
+           color: aquamarine;
+       }
+
+       .Right {
+           float: left;
+           width: 25%;
+           text-align: right;
+           background-repeat: no-repeat;
+           line-height: 2.5em;
+           text-shadow: 0 0 10px pink, 0 0 20px pink, 0 0 30px red, 0 0 40px red;
+       }
+
+       .Center {
+           float: left;
+           width: 50%;
+           background-color: rgba(0, 0, 0, 0.7);
+           background-size: cover;
+           min-height: 100vh;
+           background-attachment: scroll;
+           font-family: "kaiti";
+       }
+
+       .Left {
+           width: 25%;
+           text-align: left;
+           background-repeat: no-repeat;
+           line-height: 2.5em;
+           float: left;
+           text-shadow: 0 0 10px red, 0 0 20px red, 0 0 30px red, 0 0 40px red;
+       }
