@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Neko Pong: 赛博猫娘大作战</title>
+    
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Tailwind CSS (使用CDN，若需完全离线可下载本地，但CDN通常稳定) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #0f172a;
+        touch-action: none; /* 禁止移动端默认触摸行为 */
+        user-select: none;
+        -webkit-user-select: none;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        height: 100dvh;
+        width: 100vw;
+      }
+      canvas { display: block; }
+      .hidden { display: none !important; }
+      
+      /* 扫描线效果 */
+      .scanline {
+        background: linear-gradient(
+          to bottom,
+          rgba(255,255,255,0),
+          rgba(255,255,255,0) 50%,
+          rgba(0,0,0,0.1) 50%,
+          rgba(0,0,0,0.1)
+        );
+        background-size: 100% 4px;
+        position: absolute;
+        pointer-events: none;
+        inset: 0;
+        z-index: 5;
+      }
+
+      /* 滑动条样式 */
+      input[type=range] {
+        -webkit-appearance: none; 
+        background: transparent; 
+      }
+      input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 20px; width: 20px;
+        border-radius: 50%;
+        background: #ec4899;
+        cursor: pointer;
+        margin-top: -8px; 
+        box-shadow: 0 0 10px #ec4899;
+      }
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%; height: 4px;
+        background: #334155;
+        border-radius: 2px;
+      }
+      
+      .animate-float { animation: float 3s ease-in-out infinite; }
+      @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+      
+      /* 返回大厅按钮 */
+      .hub-btn {
+          position: absolute;
+          top: 1rem;
+          left: 1rem;
+          z-index: 60;
+          color: rgba(255,255,255,0.5);
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-decoration: none;
+          background: rgba(15, 23, 42, 0.6);
+          border: 1px solid rgba(255,255,255,0.1);
+          padding: 8px 16px;
+          border-radius: 4px;
+          font-size: 12px;
+          backdrop-filter: blur(4px);
+          font-weight: bold;
+          letter-spacing: 1px;
+      }
+      .hub-btn:hover { 
+          color: #fff; 
+          background: rgba(15, 23, 42, 0.9);
+          border-color: rgba(236, 72, 153, 0.5); /* Pink border on hover */
+          box-shadow: 0 0 10px rgba(236, 72, 153, 0.2);
+      }
+    </style>
+</head>
+<body class="text-white relative h-full w-full overflow-hidden">
+
+    <a href="index.html" class="hub-btn">← 退出游戏</a>
+
+    <!-- 游戏 UI 层 -->
+    <div id="ui-layer" class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-4">
+        
+        <!-- 顶部 HUD -->
+        <div class="flex justify-between items-start w-full">
+            <!-- 玩家信息 -->
+            <div class="text-cyan-400 font-bold text-xl md:text-2xl drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] flex flex-col ml-8">
+                <span>玩家</span>
+                <span class="text-xs text-slate-500 font-normal tracking-widest">HUMAN</span>
+            </div>
+
+            <!-- 比分板 -->
+            <div class="absolute left-1/2 -translate-x-1/2 top-4 flex gap-6 text-6xl md:text-8xl font-black italic tracking-tighter">
+                <span id="score-player" class="text-cyan-400 drop-shadow-[0_0_20px_rgba(34,211,238,0.6)]">0</span>
+                <span class="text-slate-700">-</span>
+                <span id="score-ai" class="text-pink-500 drop-shadow-[0_0_20px_rgba(236,72,153,0.6)]">0</span>
+            </div>
+
+            <!-- AI 信息 & 退出按钮 -->
+            <div class="flex flex-col items-end gap-2 pointer-events-auto">
+                <div class="text-pink-500 font-bold text-xl md:text-2xl drop-shadow-[0_0_10px_rgba(236,72,153,0.5)] text-right">
+                    猫娘 AI
+                    <div id="badge-difficulty" class="text-xs text-pink-300 font-normal opacity-80 tracking-widest">普通模式</div>
+                </div>
+                <button id="btn-exit" class="hidden px-4 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-400 border border-slate-600 rounded-full text-xs font-bold uppercase backdrop-blur transition">
+                    退出 (ESC)
+                </button>
+            </div>
+        </div>
+
+        <!-- 底部 嘲讽气泡 -->
+        <div id="chat-bubble" class="self-center mb-4 w-[90%] max-w-md transition-all duration-300 transform translate-y-4 opacity-0">
+            <div class="bg-slate-900/90 border border-pink-500/30 rounded-2xl p-4 shadow-2xl backdrop-blur flex items-center gap-4">
+                <div class="text-4xl animate-bounce">🐱</div>
+                <div class="flex-1">
+                    <div class="text-pink-500 text-[10px] font-bold uppercase tracking-wider mb-1">系统消息</div>
+                    <p id="chat-text" class="text-sm md:text-base font-medium text-white/90">系统启动中...喵！</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 菜单界面 -->
+    <div id="menu-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md transition-opacity duration-300">
+        <div class="text-center mb-12 animate-float">
+            <h1 class="text-7xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 via-violet-500 to-pink-500 italic tracking-tighter drop-shadow-2xl">
+                猫娘<br>大作战
+            </h1>
+            <p class="text-pink-500 font-mono text-sm tracking-[0.5em] mt-2">NEKO PONG</p>
+        </div>
+
+        <div class="flex flex-col gap-4 w-64 md:w-80 pointer-events-auto">
+            <button id="btn-start" class="w-full py-4 bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white rounded-xl font-bold text-xl tracking-widest shadow-[0_0_20px_rgba(236,72,153,0.4)] transition hover:scale-105 active:scale-95">
+                开始对战
+            </button>
+            <button id="btn-settings" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 rounded-xl font-bold tracking-widest transition hover:scale-105 active:scale-95">
+                游戏设置
+            </button>
+        </div>
+        
+        <p class="mt-8 text-slate-500 text-xs font-mono">鼠标控制球拍 • ESC 退出 • 率先获得5分胜利</p>
+    </div>
+
+    <!-- 设置界面 -->
+    <div id="settings-screen" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-xl">
+        <h2 class="text-3xl font-bold text-white mb-10 tracking-wider">系统设置</h2>
+        
+        <div class="w-72 space-y-6">
+            <!-- 难度 -->
+            <div class="space-y-2">
+                <div class="flex justify-between text-pink-400 font-bold text-sm">
+                    <span>AI 强度</span>
+                    <span id="val-difficulty">普通</span>
+                </div>
+                <input type="range" id="input-difficulty" min="0" max="3" step="1" value="1" class="w-full">
+                <div class="flex justify-between text-[10px] text-slate-600 font-mono">
+                    <span>呆萌</span><span>普通</span><span>困难</span><span>猫神</span>
+                </div>
+            </div>
+
+            <!-- 速度 -->
+            <div class="space-y-2">
+                <div class="flex justify-between text-cyan-400 font-bold text-sm">
+                    <span>球速倍率</span>
+                    <span id="val-speed">x1.0</span>
+                </div>
+                <input type="range" id="input-speed" min="0.8" max="2.0" step="0.2" value="1.0" class="w-full">
+            </div>
+
+            <!-- 全屏 -->
+            <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
+                <span class="text-slate-300 text-sm font-bold">全屏模式</span>
+                <button id="btn-fullscreen" class="bg-slate-700 px-3 py-1 rounded text-xs hover:bg-slate-600 transition">切换</button>
+            </div>
+        </div>
+
+        <button id="btn-save" class="mt-12 px-10 py-3 bg-white text-slate-950 font-black rounded-full shadow-xl hover:bg-slate-200 transition hover:scale-105 tracking-widest">
+            保存并返回
+        </button>
+    </div>
+
+    <!-- 结算界面 -->
+    <div id="result-screen" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/95 backdrop-blur-md">
+        <h2 id="result-title" class="text-6xl md:text-8xl font-black mb-4 italic tracking-tighter">胜利!</h2>
+        <p id="result-score" class="text-2xl text-slate-300 font-mono mb-10">最终比分: 5 - 3</p>
+        <div class="flex gap-4">
+            <button id="btn-retry" class="px-8 py-3 bg-pink-500 hover:bg-pink-400 text-white rounded-lg font-bold shadow-lg transition hover:scale-105">
+                再来一局
+            </button>
+            <button id="btn-home" class="px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold shadow-lg transition hover:scale-105">
+                返回菜单
+            </button>
+        </div>
+    </div>
+
+    <!-- 游戏画布 -->
+    <canvas id="gameCanvas" class="block w-full h-full cursor-none"></canvas>
+    <div class="scanline"></div>
+
+    <!-- 核心逻辑脚本 -->
+    <script>
+        /**
+         * 游戏常量配置
+         */
+        const CONFIG = {
+            PADDLE_H_RATIO: 0.15, 
+            PADDLE_W_RATIO: 0.015,
+            MARGIN: 15,
+            BALL_RADIUS: 8,
+            WIN_SCORE: 5,
+            BASE_SPEED: 6
+        };
+
+        /**
+         * 状态管理
+         */
+        const state = {
+            status: 'MENU',
+            w: 0, h: 0,
+            scores: { player: 0, ai: 0 },
+            ball: { x: 0, y: 0, dx: 0, dy: 0, speed: 0 },
+            paddles: { pY: 0, aiY: 0, targetPY: 0 },
+            input: { virtualY: 0 },
+            particles: [],
+            countdown: 0,
+            settings: {
+                difficulty: 1, 
+                speedMulti: 1.0,
+                diffName: "普通"
+            },
+            ai: {
+                lerp: 0.08,
+                error: 0,
+                predictY: 0
+            }
+        };
+
+        // 纯本地内置词库 (丰富了一些)
+        const DIALOGS = {
+            start: [
+                "杂鱼~ 杂鱼~ 准备好哭了吗？♡", 
+                "这种程度的杂鱼也敢来挑战？", 
+                "我会把你虐到哭着找妈妈的喵~♡",
+                "不会吧不会吧，真有人觉得能赢我？",
+                "让我看看你的本事吧，杂鱼♡"
+            ],
+            pScore: [
+                "切... 运气好而已！", 
+                "别得意忘形了，死杂鱼！", 
+                "刚才是我大意了... 哼！",
+                "你作弊了吧！一定是！",
+                "这球不算！喵呜！"
+            ],
+            aiScore: [
+                "杂鱼~ 杂鱼~♡", 
+                "好弱哎~ 你的手是装饰品吗？", 
+                "这就行了吗？真没用呢♡",
+                "看来你只有这种程度了喵~", 
+                "再努力一点啊，杂鱼哥哥~♡",
+                "简单到无聊呢~ 喵~"
+            ],
+            aiHit: [
+                "太慢了！", 
+                "给我接好！", 
+                "西内！", 
+                "贫弱贫弱！", 
+                "木大木大！",
+                "看招！"
+            ]
+        };
+
+        // DOM 元素
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const ui = {
+            pScore: document.getElementById('score-player'),
+            aiScore: document.getElementById('score-ai'),
+            chat: document.getElementById('chat-bubble'),
+            chatText: document.getElementById('chat-text'),
+            menu: document.getElementById('menu-screen'),
+            settings: document.getElementById('settings-screen'),
+            result: document.getElementById('result-screen'),
+            resultTitle: document.getElementById('result-title'),
+            resultScore: document.getElementById('result-score'),
+            btnExit: document.getElementById('btn-exit'),
+            diffBadge: document.getElementById('badge-difficulty')
+        };
+
+        /**
+         * 初始化
+         */
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            
+            // 绑定按钮事件
+            document.getElementById('btn-start').onclick = startGame;
+            document.getElementById('btn-settings').onclick = openSettings;
+            document.getElementById('btn-save').onclick = closeSettings;
+            document.getElementById('btn-exit').onclick = goHome;
+            document.getElementById('btn-retry').onclick = startGame;
+            document.getElementById('btn-home').onclick = goHome;
+            document.getElementById('btn-fullscreen').onclick = toggleFS;
+
+            // 设置相关绑定
+            document.getElementById('input-difficulty').oninput = (e) => {
+                const val = parseInt(e.target.value);
+                const names = ["呆萌", "普通", "困难", "猫神"];
+                state.settings.difficulty = val;
+                state.settings.diffName = names[val];
+                document.getElementById('val-difficulty').innerText = names[val];
+                
+                const speeds = [0.05, 0.08, 0.15, 0.35];
+                state.ai.lerp = speeds[val];
+            };
+
+            document.getElementById('input-speed').oninput = (e) => {
+                const val = parseFloat(e.target.value);
+                state.settings.speedMulti = val;
+                document.getElementById('val-speed').innerText = `x${val.toFixed(1)}`;
+            };
+            
+            // 鼠标/触摸控制
+            document.addEventListener('mousemove', (e) => {
+                if (state.status !== 'PLAYING' || state.countdown > 0) return;
+
+                if (document.pointerLockElement === canvas) {
+                    state.input.virtualY += e.movementY;
+                } else {
+                    state.input.virtualY = e.clientY;
+                }
+                state.input.virtualY = Math.max(0, Math.min(state.h, state.input.virtualY));
+
+                const ph = state.h * CONFIG.PADDLE_H_RATIO;
+                state.paddles.targetPY = Math.max(0, Math.min(state.h - ph, state.input.virtualY - ph/2));
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (state.status !== 'PLAYING' || state.countdown > 0) return;
+                e.preventDefault();
+                const y = e.touches[0].clientY;
+                state.input.virtualY = y;
+                const ph = state.h * CONFIG.PADDLE_H_RATIO;
+                state.paddles.targetPY = Math.max(0, Math.min(state.h - ph, y - ph/2));
+            }, { passive: false });
+
+            // ESC 退出
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement !== canvas && state.status === 'PLAYING') {
+                    goHome();
+                }
+            });
+
+            requestAnimationFrame(loop);
+            showChat("系统就绪，等待指令喵~");
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            state.w = canvas.width;
+            state.h = canvas.height;
+            const ph = state.h * CONFIG.PADDLE_H_RATIO;
+            if (state.status === 'MENU') {
+                state.paddles.pY = (state.h - ph) / 2;
+                state.paddles.aiY = (state.h - ph) / 2;
+                state.input.virtualY = state.h / 2;
+            }
+        }
+
+        // --- 游戏流程 ---
+        function startGame() {
+            state.status = 'PLAYING';
+            state.scores = { player: 0, ai: 0 };
+            state.particles = [];
+            state.input.virtualY = state.h / 2;
+            state.paddles.targetPY = (state.h - state.h * CONFIG.PADDLE_H_RATIO) / 2;
+            state.paddles.pY = state.paddles.targetPY;
+
+            ui.menu.classList.add('hidden');
+            ui.result.classList.add('hidden');
+            ui.settings.classList.add('hidden');
+            ui.btnExit.classList.remove('hidden');
+            
+            ui.diffBadge.innerText = state.settings.diffName;
+            updateScoreUI();
+            
+            canvas.requestPointerLock();
+            
+            triggerChat('start');
+            resetBall(Math.random() > 0.5 ? 1 : -1);
+        }
+
+        function resetBall(direction) {
+            state.countdown = 3;
+            state.ball.speed = CONFIG.BASE_SPEED * state.settings.speedMulti;
+            state.ball.dx = 0; state.ball.dy = 0;
+            state.ball.y = state.h / 2;
+            const pw = Math.max(10, state.w * CONFIG.PADDLE_W_RATIO);
+            state.ball.x = direction === 1 ? CONFIG.MARGIN + pw + 20 : state.w - CONFIG.MARGIN - pw - 20;
+
+            const timer = setInterval(() => {
+                state.countdown--;
+                if (state.countdown <= 0) {
+                    clearInterval(timer);
+                    launchBall(direction);
+                }
+            }, 1000);
+        }
+
+        function launchBall(direction) {
+            const angle = (Math.random() * Math.PI / 2.5) - (Math.PI / 5);
+            state.ball.dx = direction * state.ball.speed * Math.cos(angle);
+            state.ball.dy = state.ball.speed * Math.sin(angle);
+            state.ai.error = 0; 
+        }
+
+        function goHome() {
+            state.status = 'MENU';
+            ui.menu.classList.remove('hidden');
+            ui.result.classList.add('hidden');
+            ui.settings.classList.add('hidden');
+            ui.btnExit.classList.add('hidden');
+            if (document.pointerLockElement === canvas) document.exitPointerLock();
+        }
+
+        function openSettings() { ui.settings.classList.remove('hidden'); }
+        function closeSettings() { ui.settings.classList.add('hidden'); }
+        function toggleFS() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e=>{});
+            else document.exitFullscreen().catch(e=>{});
+        }
+
+        // --- 核心更新 ---
+        function update() {
+            if (state.status !== 'PLAYING') return;
+
+            const ph = state.h * CONFIG.PADDLE_H_RATIO;
+            const pw = Math.max(10, state.w * CONFIG.PADDLE_W_RATIO);
+
+            // 玩家移动
+            state.paddles.pY += (state.paddles.targetPY - state.paddles.pY) * 0.2;
+
+            // AI 逻辑
+            let aiTarget = state.paddles.aiY;
+            if (state.countdown > 0) {
+                aiTarget = (state.h - ph) / 2;
+            } else if (state.ball.dx > 0) { 
+                let targetY = state.ball.y;
+                if (Math.random() < 0.02) { 
+                    const errScale = (3 - state.settings.difficulty) * 30; 
+                    state.ai.error = (Math.random() - 0.5) * errScale;
+                }
+                aiTarget = targetY + state.ai.error - ph/2;
+            } else {
+                aiTarget = (state.h - ph) / 2;
+            }
+            aiTarget = Math.max(0, Math.min(state.h - ph, aiTarget));
+            state.paddles.aiY += (aiTarget - state.paddles.aiY) * state.ai.lerp;
+
+            if (state.countdown > 0) return; 
+
+            // 球物理
+            state.ball.x += state.ball.dx;
+            state.ball.y += state.ball.dy;
+
+            if (state.ball.y < CONFIG.BALL_RADIUS || state.ball.y > state.h - CONFIG.BALL_RADIUS) {
+                state.ball.dy *= -1;
+                state.ball.y = state.ball.y < CONFIG.BALL_RADIUS ? CONFIG.BALL_RADIUS : state.h - CONFIG.BALL_RADIUS;
+                spawnParticles(state.ball.x, state.ball.y, '#fff');
+            }
+
+            // 碰撞
+            if (state.ball.dx < 0 && state.ball.x - CONFIG.BALL_RADIUS < CONFIG.MARGIN + pw) {
+                if (state.ball.y + CONFIG.BALL_RADIUS > state.paddles.pY && 
+                    state.ball.y - CONFIG.BALL_RADIUS < state.paddles.pY + ph) {
+                    hitBall(state.paddles.pY, 1, ph);
+                    spawnParticles(state.ball.x, state.ball.y, '#22d3ee'); 
+                }
+            }
+            if (state.ball.dx > 0 && state.ball.x + CONFIG.BALL_RADIUS > state.w - CONFIG.MARGIN - pw) {
+                if (state.ball.y + CONFIG.BALL_RADIUS > state.paddles.aiY && 
+                    state.ball.y - CONFIG.BALL_RADIUS < state.paddles.aiY + ph) {
+                    hitBall(state.paddles.aiY, -1, ph);
+                    spawnParticles(state.ball.x, state.ball.y, '#e879f9'); 
+                    if (Math.random() < 0.3) triggerChat('aiHit');
+                }
+            }
+
+            // 得分
+            if (state.ball.x < -20) handleScore('ai');
+            if (state.ball.x > state.w + 20) handleScore('player');
+
+            updateParticles();
+        }
+
+        function hitBall(paddleY, direction, ph) {
+            const center = paddleY + ph / 2;
+            const dist = (state.ball.y - center) / (ph / 2); 
+            const angle = dist * (Math.PI / 3); 
+            const maxSpeed = CONFIG.BASE_SPEED * state.settings.speedMulti * 2.5;
+            state.ball.speed = Math.min(state.ball.speed * 1.05, maxSpeed);
+            state.ball.dx = direction * state.ball.speed * Math.cos(angle);
+            state.ball.dy = state.ball.speed * Math.sin(angle);
+        }
+
+        function handleScore(winner) {
+            if (winner === 'player') {
+                state.scores.player++;
+                triggerChat('pScore');
+            } else {
+                state.scores.ai++;
+                triggerChat('aiScore');
+            }
+            updateScoreUI();
+            if (state.scores.player >= CONFIG.WIN_SCORE || state.scores.ai >= CONFIG.WIN_SCORE) {
+                endGame(winner);
+            } else {
+                resetBall(winner === 'player' ? 1 : -1); 
+            }
+        }
+
+        function endGame(winner) {
+            state.status = 'END';
+            ui.btnExit.classList.add('hidden');
+            ui.result.classList.remove('hidden');
+            document.exitPointerLock(); 
+            const isWin = winner === 'player';
+            ui.resultTitle.innerText = isWin ? "你赢了!" : "杂鱼~输了♡";
+            ui.resultTitle.className = isWin ? "text-6xl md:text-8xl font-black mb-4 italic tracking-tighter text-cyan-400" : "text-6xl md:text-8xl font-black mb-4 italic tracking-tighter text-pink-500";
+            ui.resultScore.innerText = `最终比分: ${state.scores.player} - ${state.scores.ai}`;
+        }
+
+        function spawnParticles(x, y, color) {
+            for(let i=0; i<10; i++) {
+                state.particles.push({
+                    x, y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+                    life: 1.0, color: color
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                let p = state.particles[i];
+                p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+                if (p.life <= 0) state.particles.splice(i, 1);
+            }
+        }
+
+        // --- 纯本地对话系统 (无任何 Key) ---
+        function triggerChat(event) {
+            let text = "";
+            if (DIALOGS[event]) {
+                const arr = DIALOGS[event];
+                text = arr[Math.floor(Math.random() * arr.length)];
+            } else {
+                text = "喵？";
+            }
+            showChatBubble(text);
+        }
+
+        function showChatBubble(text) {
+            ui.chatText.innerText = text;
+            ui.chat.style.opacity = '1';
+            ui.chat.style.transform = 'translateY(0)';
+            
+            if (state.chatTimer) clearTimeout(state.chatTimer);
+            state.chatTimer = setTimeout(() => {
+                ui.chat.style.opacity = '0';
+                ui.chat.style.transform = 'translateY(16px)';
+            }, 3000);
+        }
+
+        function updateScoreUI() {
+            ui.pScore.innerText = state.scores.player;
+            ui.aiScore.innerText = state.scores.ai;
+        }
+
+        function draw() {
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, state.w, state.h);
+
+            const ph = state.h * CONFIG.PADDLE_H_RATIO;
+            const pw = Math.max(10, state.w * CONFIG.PADDLE_W_RATIO);
+
+            // 中线
+            ctx.beginPath();
+            ctx.setLineDash([10, 15]);
+            ctx.moveTo(state.w / 2, 0); ctx.lineTo(state.w / 2, state.h);
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 4; ctx.stroke(); ctx.setLineDash([]);
+
+            // 辅助线
+            if (state.status === 'PLAYING') {
+                const cursorY = state.input.virtualY;
+                ctx.beginPath();
+                ctx.moveTo(0, cursorY); ctx.lineTo(state.w, cursorY);
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.1)'; ctx.lineWidth = 1; ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(CONFIG.MARGIN + pw + 10, cursorY); ctx.lineTo(CONFIG.MARGIN + pw + 25, cursorY);
+                ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2; ctx.stroke();
+            }
+
+            // 球拍
+            ctx.fillStyle = '#22d3ee'; ctx.shadowBlur = 20; ctx.shadowColor = 'rgba(34,211,238,0.4)';
+            roundRect(ctx, CONFIG.MARGIN, state.paddles.pY, pw, ph, 4); ctx.fill();
+
+            ctx.fillStyle = '#e879f9'; ctx.shadowBlur = 20; ctx.shadowColor = 'rgba(232,121,249,0.4)';
+            roundRect(ctx, state.w - CONFIG.MARGIN - pw, state.paddles.aiY, pw, ph, 4); ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // 球
+            if (state.status === 'PLAYING' || state.countdown > 0) {
+                ctx.beginPath(); ctx.arc(state.ball.x, state.ball.y, CONFIG.BALL_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff'; ctx.fill();
+            }
+
+            // 粒子
+            state.particles.forEach(p => {
+                ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
+            // 倒计时
+            if (state.countdown > 0 && state.status === 'PLAYING') {
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 120px sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(state.countdown, state.w/2, state.h/2);
+            }
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+        }
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        init();
+
+    </script>
+</body>
+</html>

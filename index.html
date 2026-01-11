@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学新世界 · 绯色之空</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Zcool+KuaiLe&display=swap" rel="stylesheet">
+    <style>
+        body {
+            /* 极致的粉色美学：梦幻渐变 */
+            background: linear-gradient(135deg, #fff0f5 0%, #ffdee9 40%, #b5fffc 100%);
+            /* 备选方案：纯粉色系渐变 */
+            background: linear-gradient(to top, #fbc2eb 0%, #a6c1ee 100%);
+            /* 最终方案：极致温柔的“初恋粉” */
+            background: linear-gradient(120deg, #fccb90 0%, #d57eeb 100%);
+            background: linear-gradient(to top, #fad0c4 0%, #ffd1ff 100%);
+            
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            
+            font-family: 'Nunito', 'PingFang SC', sans-serif;
+            color: #831843;
+            overflow-x: hidden;
+            overflow-y: auto;
+            min-height: 100vh;
+            width: 100vw;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 遮罩层：增加一点点白色噪点纹理，提升质感 */
+        .bg-overlay {
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            opacity: 0.6;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* 超级磨砂玻璃卡片 */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            box-shadow: 0 8px 32px 0 rgba(255, 105, 180, 0.15);
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+            transform: skewX(-25deg);
+            transition: 0.5s;
+        }
+
+        .glass-card:hover::before {
+            left: 125%;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            background: rgba(255, 255, 255, 0.6);
+            box-shadow: 0 20px 50px rgba(255, 105, 180, 0.3);
+            border-color: rgba(255, 255, 255, 0.95);
+        }
+
+        /* 标题字体 */
+        .title-font {
+            font-family: 'Zcool KuaiLe', cursive;
+        }
+
+        /* 樱花特效 */
+        .sakura {
+            position: fixed;
+            top: -20px;
+            background-color: #fff;
+            border-radius: 100% 0 100% 0;
+            opacity: 0.9;
+            pointer-events: none;
+            z-index: 0;
+            animation: fall linear infinite, sway ease-in-out infinite alternate;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+        }
+
+        @keyframes fall {
+            to { top: 110vh; }
+        }
+
+        @keyframes sway {
+            from { transform: translateX(0) rotate(0deg); }
+            to { transform: translateX(30px) rotate(45deg); }
+        }
+
+        /* Menu Button */
+        .menu-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 15px rgba(236, 72, 153, 0.2);
+        }
+        .menu-btn:hover {
+            transform: scale(1.1) rotate(90deg);
+            background: rgba(255, 255, 255, 0.8);
+        }
+        .menu-btn svg {
+            width: 24px;
+            height: 24px;
+            stroke: #831843;
+            transition: stroke 0.3s;
+        }
+
+        /* Fullscreen Navigation Overlay */
+        .nav-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 240, 245, 0.95);
+            backdrop-filter: blur(20px);
+            z-index: 90;
+            transform: translateY(-100%);
+            transition: transform 0.6s cubic-bezier(0.85, 0, 0.15, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow-y: auto;
+            padding: 40px;
+        }
+        .nav-overlay.open {
+            transform: translateY(0);
+        }
+
+        .nav-section {
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 40px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease 0.1s;
+        }
+        .nav-overlay.open .nav-section {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .nav-overlay.open .nav-section:nth-child(2) {
+            transition-delay: 0.2s;
+        }
+
+        .nav-header {
+            font-family: 'Zcool KuaiLe', cursive;
+            font-size: 2rem;
+            color: #db2777; /* Pink-600 */
+            margin-bottom: 20px;
+            border-bottom: 2px dashed #fbcfe8;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+            text-decoration: none;
+            color: #500724;
+            font-weight: bold;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+        .nav-item:hover {
+            background: white;
+            transform: translateX(10px);
+            box-shadow: 0 4px 20px rgba(236, 72, 153, 0.15);
+            border-color: #fbcfe8;
+            color: #db2777;
+        }
+        .nav-icon {
+            font-size: 1.5rem;
+            margin-right: 15px;
+            width: 40px;
+            text-align: center;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center relative px-4 py-12">
+
+    <div class="bg-overlay"></div>
+
+    <!-- Menu Toggle Button -->
+    <button class="menu-btn" onclick="toggleMenu()">
+        <svg id="menu-icon-bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+        <svg id="menu-icon-close" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+    </button>
+
+    <!-- Navigation Overlay -->
+    <div class="nav-overlay" id="nav-overlay">
+        
+        <!-- HISTORY SECTION -->
+        <div class="nav-section">
+            <div class="nav-header">📜 History Archive</div>
+            <div class="nav-grid">
+                <a href="math_c1.html" class="nav-item">
+                    <span class="nav-icon">00</span>
+                    <div>
+                        <div class="text-xs uppercase text-pink-400 tracking-widest">History 0</div>
+                        <div>加法与减法</div>
+                    </div>
+                </a>
+                
+                <a href="math_c3.html" class="nav-item">
+                    <span class="nav-icon">01</span>
+                    <div>
+                        <div class="text-xs uppercase text-blue-400 tracking-widest">History 1</div>
+                        <div>乘法与除法</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- APPLY SECTION -->
+        <div class="nav-section">
+            <div class="nav-header">🧪 Apply Lab</div>
+            <div class="nav-grid">
+                <a href="math_c2.html" class="nav-item">
+                    <span class="nav-icon">🏪</span>
+                    <div>
+                        <div class="text-xs uppercase text-purple-400 tracking-widest">Apply 0</div>
+                        <div>猫猫便利店</div>
+                    </div>
+                </a>
+                
+                <a href="math_c4.html" class="nav-item">
+                    <span class="nav-icon">⚗️</span>
+                    <div>
+                        <div class="text-xs uppercase text-emerald-400 tracking-widest">Apply 1</div>
+                        <div>炼金工坊</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <button onclick="toggleMenu()" class="mt-8 text-pink-500 font-bold hover:text-pink-700 transition">
+            [ Close Menu ]
+        </button>
+    </div>
+
+    <!-- Header -->
+    <header class="text-center mb-16 z-10 relative animate-fade-in-down">
+        <div class="inline-block px-6 py-2 rounded-full bg-white/40 backdrop-blur-md text-white text-xs font-black tracking-[0.3em] mb-6 uppercase border border-white/60 shadow-lg shadow-pink-300/30">
+            Project: Zero to Hero
+        </div>
+        <h1 class="text-6xl md:text-8xl font-black tracking-tighter text-white mb-6 drop-shadow-[0_4px_4px_rgba(255,105,180,0.5)] title-font">
+            MATH WORLD
+        </h1>
+        <p class="text-white/90 font-bold text-lg max-w-lg mx-auto leading-relaxed bg-white/20 backdrop-blur-md p-6 rounded-2xl border border-white/40 shadow-xl">
+            愿你读懂这份沉默的浪漫。
+        </p>
+    </header>
+
+    <!-- Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl z-10 relative pb-12">
+        
+        <!-- World 0 -->
+        <a href="math_c1.html" class="glass-card rounded-[2.5rem] p-8 flex flex-col group cursor-pointer h-64 justify-between">
+            <div class="absolute -right-10 -top-10 w-40 h-40 bg-pink-300/40 rounded-full blur-3xl group-hover:bg-pink-400/50 transition-all duration-500"></div>
+            <div class="relative z-10">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-3 py-1 bg-white/60 text-pink-600 text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm">History 0</span>
+                </div>
+                <h2 class="text-3xl font-black text-slate-800 mb-2 group-hover:text-pink-600 transition-colors title-font">加法与减法</h2>
+                <p class="text-slate-600 text-sm leading-relaxed font-medium">
+                    万物的获得与失去。<br>从原始的计数到简单的交换。
+                </p>
+            </div>
+            <div class="flex justify-between items-end mt-2 relative z-10">
+                <span class="text-4xl">🍎</span>
+                <span class="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-pink-400 font-bold group-hover:bg-pink-500 group-hover:text-white transition-all shadow-lg hover:shadow-pink-500/40">➜</span>
+            </div>
+        </a>
+
+        <!-- Apply 0 -->
+        <a href="math_c2.html" class="glass-card rounded-[2.5rem] p-8 flex flex-col group cursor-pointer h-64 justify-between">
+            <div class="absolute -right-10 -top-10 w-40 h-40 bg-purple-300/40 rounded-full blur-3xl group-hover:bg-purple-400/50 transition-all duration-500"></div>
+            <div class="relative z-10">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-3 py-1 bg-white/60 text-purple-600 text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm">Apply 0</span>
+                </div>
+                <h2 class="text-3xl font-black text-slate-800 mb-2 group-hover:text-purple-600 transition-colors title-font">猫猫便利店</h2>
+                <p class="text-slate-600 text-sm leading-relaxed font-medium">
+                    收银模拟器。<br>在购物中体验累加的快乐。
+                </p>
+            </div>
+            <div class="flex justify-between items-end mt-2 relative z-10">
+                <span class="text-4xl">🏪</span>
+                <span class="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-purple-400 font-bold group-hover:bg-purple-500 group-hover:text-white transition-all shadow-lg hover:shadow-purple-500/40">➜</span>
+            </div>
+        </a>
+
+        <!-- World 1 -->
+        <a href="math_c3.html" class="glass-card rounded-[2.5rem] p-8 flex flex-col group cursor-pointer h-64 justify-between">
+            <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-300/40 rounded-full blur-3xl group-hover:bg-blue-400/50 transition-all duration-500"></div>
+            <div class="relative z-10">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-3 py-1 bg-white/60 text-blue-600 text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm">History 1</span>
+                </div>
+                <h2 class="text-3xl font-black text-slate-800 mb-2 group-hover:text-blue-600 transition-colors title-font">乘法与除法</h2>
+                <p class="text-slate-600 text-sm leading-relaxed font-medium">
+                    秩序与公平的起源。<br>从农田丈量到粮食分配。
+                </p>
+            </div>
+            <div class="flex justify-between items-end mt-2 relative z-10">
+                <span class="text-4xl">⚖️</span>
+                <span class="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-blue-400 font-bold group-hover:bg-blue-500 group-hover:text-white transition-all shadow-lg hover:shadow-blue-500/40">➜</span>
+            </div>
+        </a>
+
+        <!-- Apply 1 -->
+        <a href="math_c4.html" class="glass-card rounded-[2.5rem] p-8 flex flex-col group cursor-pointer h-64 justify-between">
+            <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-300/40 rounded-full blur-3xl group-hover:bg-emerald-400/50 transition-all duration-500"></div>
+            <div class="relative z-10">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-3 py-1 bg-white/60 text-emerald-600 text-[10px] font-bold rounded-full uppercase tracking-wider backdrop-blur-sm">Apply 1</span>
+                </div>
+                <h2 class="text-3xl font-black text-slate-800 mb-2 group-hover:text-emerald-600 transition-colors title-font">炼金工坊</h2>
+                <p class="text-slate-600 text-sm leading-relaxed font-medium">
+                    配方与制药。<br>通过倍增与分配来制造魔法药水。
+                </p>
+            </div>
+            <div class="flex justify-between items-end mt-2 relative z-10">
+                <span class="text-4xl">⚗️</span>
+                <span class="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-emerald-400 font-bold group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-lg hover:shadow-emerald-500/40">➜</span>
+            </div>
+        </a>
+
+    </div>
+
+    <footer class="mt-auto py-6 text-center text-white/60 text-[10px] font-mono z-10 tracking-widest">
+        历史故事纯属虚构，请勿相信(叠甲)
+    </footer>
+
+    <!-- Sakura Script -->
+    <script>
+        function createSakura() {
+            const sakura = document.createElement('div');
+            sakura.classList.add('sakura');
+            const size = Math.random() * 14 + 8 + 'px'; 
+            const left = Math.random() * 100 + '%'; 
+            const duration = Math.random() * 5 + 6 + 's'; 
+            const delay = Math.random() * 5 + 's';
+            sakura.style.width = size; sakura.style.height = size; sakura.style.left = left;
+            sakura.style.animationDuration = `${duration}, 3s`; sakura.style.animationDelay = `${delay}, 0s`;
+            document.body.appendChild(sakura);
+            setTimeout(() => { sakura.remove(); }, 11000 + parseFloat(delay)*1000);
+        }
+        setInterval(createSakura, 150); 
+        function toggleMenu() {
+            const nav = document.getElementById('nav-overlay');
+            const bars = document.getElementById('menu-icon-bars');
+            const close = document.getElementById('menu-icon-close');
+            nav.classList.toggle('open');
+            if (nav.classList.contains('open')) {
+                bars.classList.add('hidden'); close.classList.remove('hidden'); document.body.style.overflow = 'hidden'; 
+            } else {
+                bars.classList.remove('hidden'); close.classList.add('hidden'); document.body.style.overflow = 'auto';
+            }
+        }
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

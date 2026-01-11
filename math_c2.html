@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>世界 02: 猫猫便利店</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zcool+KuaiLe&family=Nunito:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #fce7f3; 
+            font-family: 'Nunito', 'PingFang SC', sans-serif;
+            color: #831843;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 8px 32px rgba(255, 154, 162, 0.2);
+        }
+
+        /* 找零动画钞票 */
+        .cash-fly { animation: flyIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes flyIn { from { transform: translateY(100px) rotate(10deg); opacity: 0; } to { transform: translateY(0) rotate(-3deg); opacity: 1; } }
+
+        /* 商品扫描线 */
+        .scan-line {
+            position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+            background: #ef4444; box-shadow: 0 0 10px #ef4444;
+            opacity: 0;
+            z-index: 10;
+        }
+        .scanning .scan-line { animation: scan 0.3s linear; }
+        @keyframes scan { 0% { top: 0; opacity: 1; } 100% { top: 100%; opacity: 0; } }
+
+        .numpad-btn {
+            background: white; border-bottom: 4px solid #fbcfe8;
+            color: #831843; border-radius: 12px; font-size: 1.5rem;
+            transition: all 0.1s;
+        }
+        .numpad-btn:active { transform: translateY(4px); border-bottom-width: 0; }
+        
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+
+        /* 痛苦加法计数器 */
+        .pain-counter {
+            position: absolute; top: 10px; right: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 4px 12px; border-radius: 20px;
+            font-weight: bold; font-size: 0.8rem;
+            color: #db2777; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center relative bg-gradient-to-br from-pink-100 to-purple-200">
+
+    <a href="index.html" class="absolute top-4 left-4 z-50 px-4 py-2 bg-white/80 rounded-full text-pink-600 font-bold shadow-sm hover:bg-white transition text-sm">
+        ← 返回大厅
+    </a>
+
+    <!-- 游戏主容器 -->
+    <div class="relative z-10 w-full max-w-5xl h-full md:h-[90vh] flex flex-col md:flex-row gap-4 p-4">
+        
+        <!-- 左侧：柜台场景 -->
+        <div class="flex-1 flex flex-col gap-4 relative">
+            <!-- 顾客气泡 -->
+            <div class="glass-panel p-4 rounded-3xl flex items-center gap-4 min-h-[100px] animate-bounce-slow relative overflow-hidden">
+                <div class="text-5xl z-10">🐱</div>
+                <div class="z-10 relative">
+                    <h3 id="customer-name" class="font-bold text-pink-800 text-sm uppercase tracking-wider mb-1">Customer</h3>
+                    <p id="customer-msg" class="text-slate-700 font-bold text-lg leading-tight">...</p>
+                </div>
+                <!-- 装饰背景 -->
+                <div class="absolute right-0 top-0 w-32 h-32 bg-pink-200/50 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4"></div>
+            </div>
+
+            <!-- 柜台桌面上 -->
+            <div class="flex-1 glass-panel rounded-3xl p-4 relative flex flex-col overflow-hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="text-[10px] text-pink-400 font-bold uppercase tracking-widest">SCANNING AREA</div>
+                    <div id="pain-counter" class="hidden text-xs bg-pink-100 text-pink-600 px-3 py-1 rounded-full font-bold">0 / 0</div>
+                </div>
+                
+                <!-- 商品区域 -->
+                <div id="items-area" class="flex-1 flex flex-wrap content-start justify-center gap-4 p-4 overflow-y-auto align-content-start">
+                    <!-- Items Injected Here -->
+                </div>
+
+                <!-- 现金支付区域 (找零关卡显示) -->
+                <div id="cash-area" class="hidden absolute bottom-0 left-0 w-full bg-slate-900/5 backdrop-blur-sm p-4 flex justify-center items-center gap-4 border-t border-white/50 z-20">
+                    <div class="text-sm text-slate-600 font-bold mr-2">顾客支付:</div>
+                    <div id="cash-display" class="bg-green-100 border-2 border-green-500 text-green-700 px-6 py-2 rounded-lg font-mono text-xl font-bold shadow-lg transform -rotate-3 origin-center">
+                        $0
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：收银机 -->
+        <div class="w-full md:w-[400px] flex flex-col gap-4">
+            
+            <!-- 收据条 (视觉) -->
+            <div class="bg-white mx-4 -mb-2 pt-4 pb-2 px-4 rounded-t-lg shadow-sm border-x border-t border-slate-200 text-xs font-mono text-slate-500 relative z-0">
+                <div class="flex justify-between border-b border-dashed border-slate-300 pb-1 mb-1">
+                    <span>NEKO MART</span>
+                    <span id="receipt-id">#001</span>
+                </div>
+                <div id="receipt-list" class="max-h-24 overflow-y-auto space-y-1">
+                    <!-- Receipt items -->
+                </div>
+                <div class="border-t border-dashed border-slate-300 pt-1 mt-1 flex justify-between font-bold text-slate-800">
+                    <span>TOTAL</span>
+                    <span id="receipt-total">$0</span>
+                </div>
+            </div>
+
+            <!-- 机器主体 -->
+            <div class="bg-pink-600 rounded-3xl p-6 shadow-2xl relative z-10 flex-1 flex flex-col border-b-8 border-pink-800">
+                
+                <!-- 屏幕 -->
+                <div class="bg-slate-800 p-2 rounded-xl mb-4 shadow-inner">
+                    <div id="screen-container" class="bg-[#d1fae5] h-20 rounded-lg flex flex-col justify-center px-4 font-mono text-right overflow-hidden relative">
+                        <div id="screen-sub" class="text-xs text-emerald-600/70 h-4 truncate">Ready...</div>
+                        <div id="screen-main" class="text-3xl font-bold text-emerald-900 truncate">0</div>
+                    </div>
+                </div>
+
+                <!-- 控制区：扫描模式 -->
+                <div id="mode-scan" class="flex-1 flex flex-col gap-3">
+                    <div class="text-white/80 text-xs text-center flex items-center justify-center gap-2">
+                        <span>点击商品</span> <span class="opacity-50">|</span> <span>加法累积</span>
+                    </div>
+                    <button onclick="triggerScan()" class="flex-1 bg-white text-pink-600 rounded-2xl font-black text-2xl shadow-[0_4px_0_#cbd5e1] active:shadow-none active:translate-y-[4px] transition-all flex items-center justify-center gap-2 group">
+                        <span class="group-hover:scale-110 transition-transform">⚡</span> 扫描
+                    </button>
+                    <button id="btn-total" onclick="finishScanning()" disabled class="py-4 bg-emerald-500 text-white rounded-2xl font-bold text-xl shadow-[0_4px_0_#047857] active:shadow-none active:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-1">
+                        收款
+                    </button>
+                </div>
+
+                <!-- 控制区：找零模式 -->
+                <div id="mode-change" class="hidden flex-1 flex flex-col gap-2">
+                    <div class="flex justify-between text-white text-xs px-2">
+                        <span>总价: <b id="change-total" class="text-pink-200">$0</b></span>
+                        <span>支付: <b id="change-paid" class="text-emerald-200">$0</b></span>
+                    </div>
+                    <div class="text-center text-white font-bold text-sm bg-pink-800/50 rounded py-1 mb-1 border border-pink-500/30">
+                        找零 = 支付 - 总价
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-2 flex-1">
+                        <button class="numpad-btn" onclick="inputNum(1)">1</button>
+                        <button class="numpad-btn" onclick="inputNum(2)">2</button>
+                        <button class="numpad-btn" onclick="inputNum(3)">3</button>
+                        <button class="numpad-btn" onclick="inputNum(4)">4</button>
+                        <button class="numpad-btn" onclick="inputNum(5)">5</button>
+                        <button class="numpad-btn" onclick="inputNum(6)">6</button>
+                        <button class="numpad-btn" onclick="inputNum(7)">7</button>
+                        <button class="numpad-btn" onclick="inputNum(8)">8</button>
+                        <button class="numpad-btn" onclick="inputNum(9)">9</button>
+                        <button class="numpad-btn text-sm font-bold text-pink-600" onclick="inputNum('C')">CLR</button>
+                        <button class="numpad-btn" onclick="inputNum(0)">0</button>
+                        <button class="numpad-btn bg-emerald-400 text-emerald-900 border-emerald-600" onclick="submitChange()">OK</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 成功弹窗 -->
+    <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 hidden backdrop-blur-sm transition-opacity opacity-0">
+        <div class="bg-white p-8 rounded-3xl max-w-sm text-center shadow-2xl transform scale-90 transition-all duration-300" id="modal-box">
+            <div class="text-6xl mb-4 animate-bounce">✨</div>
+            <h2 class="text-2xl font-black text-slate-800 mb-2">交易完成!</h2>
+            <p id="modal-msg" class="text-slate-500 mb-6 text-sm font-medium">加法计算正确！</p>
+            <button onclick="nextLevel()" class="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all">
+                下一位顾客 ➔
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const LEVELS = [
+            {
+                type: 'scan',
+                items: [ {icon:'🍎', p:2}, {icon:'🍎', p:2}, {icon:'🍌', p:3} ],
+                msg: "你好！买几个水果。",
+                hint: "2 + 2 + 3 = ?"
+            },
+            {
+                type: 'scan',
+                items: [ {icon:'🥛', p:5}, {icon:'🍞', p:4}, {icon:'🥚', p:1}, {icon:'🥚', p:1} ],
+                msg: "做早餐需要这些。",
+                hint: "扫描商品进行累加"
+            },
+            {
+                type: 'change', // 找零关卡
+                total: 8,
+                paid: 10,
+                msg: "一共8元，给你10元现金。",
+                hint: "10 - 8 = ?"
+            },
+            {
+                type: 'change',
+                total: 17,
+                paid: 20,
+                msg: "这是20元，不用找...哦不对，还是要找零的。",
+                hint: "20 - 17 = ?"
+            },
+            {
+                type: 'change',
+                total: 36,
+                paid: 50,
+                msg: "买了好多东西，给您50元。",
+                hint: "50 - 36 = ?"
+            },
+            {
+                type: 'scan_pain', // 痛苦加法关卡 (乘法引子)
+                items: Array(12).fill({icon:'🥫', p:3}),
+                msg: "店长！我们要进货，请核对这 12 罐猫罐头！",
+                hint: "一个一个扫...好累啊..."
+            }
+        ];
+
+        let curLvlIdx = 0;
+        let state = {
+            scannedCount: 0,
+            currentTotal: 0,
+            userInput: '',
+            isChangeMode: false
+        };
+
+        const ui = {
+            itemsArea: document.getElementById('items-area'),
+            screenMain: document.getElementById('screen-main'),
+            screenSub: document.getElementById('screen-sub'),
+            screenContainer: document.getElementById('screen-container'),
+            receiptList: document.getElementById('receipt-list'),
+            receiptTotal: document.getElementById('receipt-total'),
+            receiptId: document.getElementById('receipt-id'),
+            btnTotal: document.getElementById('btn-total'),
+            modeScan: document.getElementById('mode-scan'),
+            modeChange: document.getElementById('mode-change'),
+            cashArea: document.getElementById('cash-area'),
+            cashDisplay: document.getElementById('cash-display'),
+            changeTotal: document.getElementById('change-total'),
+            changePaid: document.getElementById('change-paid'),
+            modal: document.getElementById('modal'),
+            modalBox: document.getElementById('modal-box'),
+            modalMsg: document.getElementById('modal-msg'),
+            custMsg: document.getElementById('customer-msg'),
+            custName: document.getElementById('customer-name'),
+            painCounter: document.getElementById('pain-counter')
+        };
+
+        function initLevel() {
+            const lvl = LEVELS[curLvlIdx];
+            state = { scannedCount: 0, currentTotal: 0, userInput: '', isChangeMode: false };
+            
+            // UI Reset
+            ui.itemsArea.innerHTML = '';
+            ui.receiptList.innerHTML = '';
+            ui.receiptTotal.innerText = '$0';
+            ui.screenMain.innerText = '0';
+            ui.screenMain.classList.remove('text-red-500');
+            ui.screenSub.innerText = 'Ready';
+            ui.modal.classList.add('hidden', 'opacity-0');
+            ui.receiptId.innerText = `#00${curLvlIdx + 1}`;
+            
+            ui.custName.innerText = `Customer #${curLvlIdx + 1}`;
+            ui.custMsg.innerText = lvl.msg;
+            
+            ui.painCounter.classList.add('hidden');
+
+            if (lvl.type === 'change') {
+                setupChangeMode(lvl);
+            } else {
+                setupScanMode(lvl);
+            }
+        }
+
+        // --- 扫描模式 (加法) ---
+        function setupScanMode(lvl) {
+            ui.modeScan.classList.remove('hidden');
+            ui.modeChange.classList.add('hidden');
+            ui.cashArea.classList.add('hidden');
+            ui.btnTotal.disabled = true;
+            ui.btnTotal.innerText = "收款";
+            ui.btnTotal.classList.remove('bg-pink-500');
+            ui.btnTotal.classList.add('bg-emerald-500');
+
+            if (lvl.type === 'scan_pain') {
+                ui.painCounter.classList.remove('hidden');
+                updatePainCounter(0, lvl.items.length);
+            }
+
+            lvl.items.forEach((item, idx) => {
+                const el = document.createElement('div');
+                el.className = 'text-5xl cursor-pointer hover:scale-110 transition duration-200 relative p-2 select-none active:scale-90';
+                el.innerHTML = item.icon;
+                el.id = `item-${idx}`;
+                
+                const tag = document.createElement('span');
+                tag.className = 'absolute -bottom-2 right-0 bg-white text-xs font-bold px-1 rounded shadow text-slate-800 pointer-events-none';
+                tag.innerText = '$' + item.p;
+                el.appendChild(tag);
+                
+                el.onclick = () => scanItem(idx, item.p, item.icon);
+                ui.itemsArea.appendChild(el);
+            });
+        }
+
+        function updatePainCounter(curr, total) {
+            ui.painCounter.innerText = `${curr} / ${total}`;
+            if (curr === total) {
+                ui.painCounter.classList.add('bg-green-100', 'text-green-600');
+                ui.painCounter.classList.remove('bg-pink-100', 'text-pink-600');
+            }
+        }
+
+        function scanItem(idx, price, icon) {
+            const el = document.getElementById(`item-${idx}`);
+            if (el.classList.contains('opacity-20')) return; // Already scanned
+
+            // Visual
+            el.classList.add('opacity-20', 'grayscale', 'scale-90');
+            const line = document.createElement('div');
+            line.className = 'scan-line';
+            el.appendChild(line);
+            el.classList.add('scanning');
+
+            // Logic
+            state.scannedCount++;
+            state.currentTotal += price;
+            
+            const lvl = LEVELS[curLvlIdx];
+            if (lvl.type === 'scan_pain') {
+                updatePainCounter(state.scannedCount, lvl.items.length);
+            }
+
+            // Screen Update
+            ui.screenSub.innerText = `${ui.screenMain.innerText} + ${price}`;
+            ui.screenMain.innerText = state.currentTotal;
+
+            // Receipt Update
+            const row = document.createElement('div');
+            row.className = 'flex justify-between animate-fade-in';
+            row.innerHTML = `<span>${icon} Item</span><span>$${price}</span>`;
+            ui.receiptList.appendChild(row);
+            ui.receiptList.scrollTop = ui.receiptList.scrollHeight;
+
+            // Check completion
+            if (state.scannedCount === lvl.items.length) {
+                ui.btnTotal.disabled = false;
+                ui.screenSub.innerText = "All items scanned";
+                ui.receiptTotal.innerText = '$' + state.currentTotal;
+                
+                // Visual feedback on button
+                ui.btnTotal.classList.remove('bg-emerald-500');
+                ui.btnTotal.classList.add('bg-pink-500', 'animate-pulse');
+            }
+        }
+
+        window.triggerScan = function() {
+            const lvl = LEVELS[curLvlIdx];
+            if (lvl.type === 'change') return;
+            // Find first unscanned
+            for(let i=0; i<lvl.items.length; i++) {
+                const el = document.getElementById(`item-${i}`);
+                if (!el.classList.contains('opacity-20')) {
+                    scanItem(i, lvl.items[i].p, lvl.items[i].icon);
+                    break;
+                }
+            }
+        }
+
+        window.finishScanning = function() {
+            const lvl = LEVELS[curLvlIdx];
+            if (lvl.type === 'scan_pain') {
+                 showSuccess("呼...手好酸...如果有乘法就好了！(加法 x 重复)");
+            } else {
+                 showSuccess("总价计算正确！");
+            }
+        }
+
+
+        // --- 找零模式 (减法) ---
+        function setupChangeMode(lvl) {
+            state.isChangeMode = true;
+            ui.modeScan.classList.add('hidden');
+            ui.modeChange.classList.remove('hidden');
+            ui.cashArea.classList.remove('hidden');
+            
+            ui.itemsArea.innerHTML = '<div class="text-slate-400 text-sm mt-20 flex flex-col items-center"><span class="text-4xl mb-2">🛍️</span><span>商品已打包</span></div>';
+            
+            ui.changeTotal.innerText = '$' + lvl.total;
+            ui.changePaid.innerText = '$' + lvl.paid;
+            
+            // Re-trigger animation
+            ui.cashDisplay.classList.remove('cash-fly');
+            void ui.cashDisplay.offsetWidth; // Force reflow
+            ui.cashDisplay.innerText = '$' + lvl.paid;
+            ui.cashDisplay.classList.add('cash-fly');
+
+            ui.screenMain.innerText = '0';
+            ui.screenSub.innerText = `${lvl.paid} - ${lvl.total} = ?`;
+        }
+
+        window.inputNum = function(n) {
+            if (n === 'C') {
+                state.userInput = '';
+            } else {
+                if (state.userInput.length < 4) {
+                    state.userInput += n;
+                }
+            }
+            ui.screenMain.innerText = state.userInput || '0';
+            ui.screenMain.classList.remove('text-red-500');
+        }
+
+        window.submitChange = function() {
+            const lvl = LEVELS[curLvlIdx];
+            const correct = lvl.paid - lvl.total;
+            
+            if (state.userInput === '') return;
+
+            if (parseInt(state.userInput) === correct) {
+                showSuccess("找零正确！");
+            } else {
+                // Shake effect
+                ui.screenContainer.classList.remove('shake');
+                void ui.screenContainer.offsetWidth;
+                ui.screenContainer.classList.add('shake');
+                
+                ui.screenMain.classList.add('text-red-500');
+                ui.screenSub.innerText = "Wrong! Try again.";
+                setTimeout(() => ui.screenMain.classList.remove('text-red-500'), 500);
+                state.userInput = '';
+                ui.screenMain.innerText = '0';
+            }
+        }
+
+
+        // --- 通用 ---
+        function showSuccess(msg) {
+            ui.modalMsg.innerText = msg;
+            ui.modal.classList.remove('hidden');
+            // Fade in
+            requestAnimationFrame(() => {
+                ui.modal.classList.remove('opacity-0');
+                ui.modalBox.classList.remove('scale-90');
+                ui.modalBox.classList.add('scale-100');
+            });
+        }
+
+        window.nextLevel = function() {
+            curLvlIdx++;
+            if (curLvlIdx >= LEVELS.length) {
+                if (confirm("太累了！12个罐头要按12次加法...\n\n有没有一种魔法，可以把“加法”变成“批量操作”？\n\n前往 [历史 1：乘法与除法] 寻找答案？")) {
+                    window.location.href = "math_c3.html";
+                }
+            } else {
+                initLevel();
+            }
+        }
+
+        // Init
+        initLevel();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>矩阵实验室: Blender版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Blender 3.x+ UI Theme */
+        :root {
+            --bg-window: #1d1d1d;
+            --bg-panel: #282828;
+            --bg-header: #303030;
+            --bg-input: #181818;
+            --text-main: #eeeeee;
+            --text-muted: #bdae9d;
+            --accent: #eb7600; /* Blender Orange */
+            --accent-blue: #4772b3;
+            --border: #3e3e3e;
+            --grid-line: #444444;
+        }
+
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: var(--bg-window); 
+            color: var(--text-main); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 12px;
+            user-select: none;
+        }
+
+        /* Layout Grid */
+        #app-grid {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Viewport */
+        #viewport {
+            position: relative;
+            background: #232323; /* 3D Viewport Dark Grey */
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .viewport-overlay {
+            position: absolute; top: 10px; left: 10px;
+            pointer-events: none;
+            color: rgba(255,255,255,0.6);
+            font-family: monospace;
+        }
+
+        /* Sidebar */
+        #properties {
+            background-color: var(--bg-panel);
+            border-left: 1px solid #111;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        /* UI Components */
+        .panel { margin-bottom: 2px; }
+        
+        .panel-header {
+            background-color: var(--bg-header);
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #111;
+            cursor: default;
+        }
+        .panel-header::before { content: '▼'; font-size: 8px; margin-right: 6px; opacity: 0.7; }
+
+        .panel-body { padding: 10px; }
+
+        .prop-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .prop-label {
+            width: 80px;
+            color: var(--text-main);
+            font-size: 11px;
+        }
+
+        .prop-value { flex: 1; }
+
+        /* Blender Style Inputs */
+        .b-vector-row {
+            display: flex;
+            gap: 2px;
+            width: 100%;
+        }
+
+        .b-input-wrapper {
+            position: relative;
+            flex: 1;
+            background-color: var(--bg-input);
+            border-radius: 3px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            border: 1px solid transparent;
+        }
+        .b-input-wrapper:hover { border-color: #555; }
+        .b-input-wrapper.focused { border-color: var(--accent); background-color: #2a2a2a; }
+
+        .b-axis-label {
+            padding: 0 4px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: ew-resize;
+            user-select: none;
+        }
+        .axis-x { color: #ff5555; }
+        .axis-y { color: #88ff88; }
+        .axis-z { color: #5588ff; }
+
+        .b-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 11px;
+            outline: none;
+            padding-right: 5px;
+        }
+
+        /* Matrix Display */
+        .matrix-display {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: #111;
+            border: 1px solid #444;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .matrix-cell {
+            background: var(--bg-input);
+            color: #ccc;
+            padding: 6px 2px;
+            text-align: center;
+            font-family: 'Consolas', monospace;
+            font-size: 10px;
+        }
+        .cell-pos { color: var(--accent); font-weight: bold; }
+
+        /* Radio Buttons (Mode Switch) */
+        .mode-switch {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: var(--bg-input);
+            padding: 6px;
+            border-radius: 4px;
+        }
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px;
+        }
+        .radio-label:hover { color: white; }
+        input[type="radio"] { accent-color: var(--accent); }
+
+        .description-text {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            line-height: 1.4;
+            padding-left: 20px;
+        }
+
+        /* Hub Button */
+        .hub-btn {
+            position: absolute; top: 1rem; left: 1rem; z-index: 50;
+            color: rgba(255,255,255,0.4); font-family: monospace; text-decoration: none;
+            border: 1px solid rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 4px;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            transition: all 0.2s;
+        }
+        .hub-btn:hover { color: white; border-color: rgba(255,255,255,0.4); }
+
+    </style>
+</head>
+<body>
+
+    <div id="app-grid">
+        <!-- 3D Viewport -->
+        <div id="viewport">
+            <a href="index.html" class="hub-btn">← 退出游戏</a>
+            <div class="viewport-overlay">
+                <div>用户视角</div>
+                <div>(1) 集合 | 立方体</div>
+            </div>
+            <!-- Canvas Injected via JS -->
+        </div>
+
+        <!-- Properties Panel -->
+        <div id="properties">
+            
+            <!-- Header -->
+            <div class="flex items-center gap-2 p-3 border-b border-[#111] mb-2">
+                <div class="w-6 h-6 bg-[#eb7600] rounded flex items-center justify-center text-black font-bold text-xs">物</div>
+                <span class="font-bold">物体属性</span>
+            </div>
+
+            <!-- Panel 1: Transform Mode -->
+            <div class="panel">
+                <div class="panel-header">矩阵合成顺序</div>
+                <div class="panel-body">
+                    <div class="mode-switch">
+                        <label class="radio-label">
+                            <input type="radio" name="order" value="TRS" checked>
+                            <span>先旋转后平移 (标准)</span>
+                        </label>
+                        <div class="description-text">
+                            顺序: <strong>T × R</strong><br>
+                            先在原点旋转，然后平移物体。<br>
+                            <span class="text-[#eb7600]">结果: 本地旋转</span>
+                        </div>
+
+                        <div class="h-2"></div>
+
+                        <label class="radio-label">
+                            <input type="radio" name="order" value="RTS">
+                            <span>先平移后旋转 (轨道)</span>
+                        </label>
+                        <div class="description-text">
+                            顺序: <strong>R × T</strong><br>
+                            先平移（移出），然后绕原点旋转。<br>
+                            <span class="text-[#4772b3]">结果: 轨道 / 全局旋转</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 2: Transforms -->
+            <div class="panel">
+                <div class="panel-header">变换</div>
+                <div class="panel-body space-y-2">
+                    
+                    <!-- Location -->
+                    <div class="prop-row">
+                        <div class="prop-label">位置</div>
+                        <div class="b-vector-row">
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-x">X</div>
+                                <input id="locX" type="number" class="b-input" value="0" step="1">
+                            </div>
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-y">Y</div>
+                                <input id="locY" type="number" class="b-input" value="0" step="1">
+                            </div>
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-z">Z</div>
+                                <input id="locZ" type="number" class="b-input" value="0" step="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rotation -->
+                    <div class="prop-row">
+                        <div class="prop-label">旋转</div>
+                        <div class="b-vector-row">
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-x">X</div>
+                                <input id="rotX" type="number" class="b-input" value="0" step="5">
+                            </div>
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-y">Y</div>
+                                <input id="rotY" type="number" class="b-input" value="0" step="5">
+                            </div>
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-z">Z</div>
+                                <input id="rotZ" type="number" class="b-input" value="0" step="5">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scale -->
+                    <div class="prop-row">
+                        <div class="prop-label">缩放</div>
+                        <div class="b-vector-row">
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-x">X</div>
+                                <input id="scaleX" type="number" class="b-input" value="1" step="0.1">
+                            </div>
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-y">Y</div>
+                                <input id="scaleY" type="number" class="b-input" value="1" step="0.1">
+                            </div>
+                            <div class="b-input-wrapper">
+                                <div class="b-axis-label axis-z">Z</div>
+                                <input id="scaleZ" type="number" class="b-input" value="1" step="0.1">
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Panel 3: Matrix Data -->
+            <div class="panel">
+                <div class="panel-header">世界矩阵 (4x4)</div>
+                <div class="panel-body">
+                    <div id="matrix-output" class="matrix-display">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div class="text-[10px] text-gray-500 mt-2 text-center">
+                        列主序 (Three.js)
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Three.js Import -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Configuration & State ---
+        const state = {
+            order: 'TRS', // TRS = Standard, RTS = Orbit
+            loc: { x: 0, y: 0, z: 0 },
+            rot: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 }
+        };
+
+        // --- Scene Setup ---
+        const viewport = document.getElementById('viewport');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x232323); // Blender Viewport Grey
+
+        const camera = new THREE.PerspectiveCamera(45, viewport.clientWidth / viewport.clientHeight, 0.1, 100);
+        camera.position.set(8, 6, 8);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        viewport.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+
+        // --- Helpers ---
+        // 1. Grid
+        const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x333333);
+        scene.add(gridHelper);
+
+        // 2. World Axes (The Origin)
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+
+        // --- The Object (The Cube) ---
+        // Constructing a "Blender Default Cube" lookalike
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        
+        // Face Material (Semi-transparent orange selection look)
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0xeb7600, 
+            transparent: true, 
+            opacity: 0.2,
+            depthTest: false // Always visible through grid
+        });
+        
+        // Edge Material (Thick orange outline)
+        const edges = new THREE.EdgesGeometry(geometry);
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xeb7600, linewidth: 2 });
+        const wireframe = new THREE.LineSegments(edges, lineMaterial);
+
+        const cube = new THREE.Mesh(geometry, material);
+        cube.add(wireframe);
+
+        // Local Axes (To show rotation of the object itself)
+        const localAxis = new THREE.AxesHelper(1.5);
+        cube.add(localAxis);
+
+        // Important: Manual Matrix Control
+        cube.matrixAutoUpdate = false;
+        scene.add(cube);
+
+        // --- Logic: Matrix Composition ---
+        function updateTransform() {
+            // 1. Construct pure transformation matrices
+            
+            // Translation Matrix (T)
+            const matT = new THREE.Matrix4().makeTranslation(state.loc.x, state.loc.y, state.loc.z);
+            
+            // Rotation Matrix (R)
+            const euler = new THREE.Euler(
+                THREE.MathUtils.degToRad(state.rot.x),
+                THREE.MathUtils.degToRad(state.rot.y),
+                THREE.MathUtils.degToRad(state.rot.z),
+                'XYZ'
+            );
+            const matR = new THREE.Matrix4().makeRotationFromEuler(euler);
+            
+            // Scale Matrix (S)
+            const matS = new THREE.Matrix4().makeScale(state.scale.x, state.scale.y, state.scale.z);
+
+            // 2. Compose them based on selected order
+            // Note: Three.js matrix multiplication `A.multiply(B)` results in A * B.
+            // Column-major vector math: P' = M * P
+            // If M = A * B, then P' = A * B * P. This means B is applied first, then A.
+            
+            const resultMatrix = new THREE.Matrix4(); // Identity
+
+            if (state.order === 'TRS') {
+                // --- CASE 1: Rotate then Translate (Standard) ---
+                // User Goal: "沿着原点进行旋转后，再进行平移操作"
+                // Logic: Apply Scale, then Rotate (at origin), then Translate to position.
+                // Math Order: T * R * S
+                // ThreeJS Order: multiply(T).multiply(R).multiply(S)
+                
+                resultMatrix.multiply(matT).multiply(matR).multiply(matS);
+                
+            } else {
+                // --- CASE 2: Translate then Rotate (Orbit) ---
+                // User Goal: "以平移后的位置沿原点进行旋转"
+                // Logic: Apply Scale, then Translate (move out), then Rotate (swing around origin).
+                // Math Order: R * T * S
+                // ThreeJS Order: multiply(R).multiply(T).multiply(matS)
+                
+                resultMatrix.multiply(matR).multiply(matT).multiply(matS);
+            }
+
+            // 3. Apply to Cube
+            cube.matrix.copy(resultMatrix);
+            
+            // 4. Update UI Matrix Grid
+            renderMatrixGrid(cube.matrix.elements);
+        }
+
+        // --- UI Logic ---
+        function setupUI() {
+            // Inputs: Location, Rotation, Scale
+            ['loc', 'rot', 'scale'].forEach(type => {
+                ['X', 'Y', 'Z'].forEach(axis => {
+                    const id = type + axis;
+                    const el = document.getElementById(id);
+                    
+                    // Input Change
+                    el.addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        state[type][axis.toLowerCase()] = val;
+                        updateTransform();
+                    });
+
+                    // Focus Styles
+                    el.addEventListener('focus', () => el.parentElement.classList.add('focused'));
+                    el.addEventListener('blur', () => el.parentElement.classList.remove('focused'));
+                });
+            });
+
+            // Radio Buttons (Order)
+            document.querySelectorAll('input[name="order"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    state.order = e.target.value;
+                    updateTransform();
+                });
+            });
+
+            // Init Grid
+            const gridContainer = document.getElementById('matrix-output');
+            for(let i=0; i<16; i++) {
+                const div = document.createElement('div');
+                div.className = 'matrix-cell';
+                div.id = `m${i}`;
+                if (i===12 || i===13 || i===14) div.classList.add('cell-pos'); // Highlight Translation part
+                gridContainer.appendChild(div);
+            }
+        }
+
+        function renderMatrixGrid(elements) {
+            for(let i=0; i<16; i++) {
+                const el = document.getElementById(`m${i}`);
+                let val = elements[i];
+                // Clean up tiny floats
+                if (Math.abs(val) < 0.0001) val = 0;
+                el.innerText = val.toFixed(2);
+            }
+        }
+
+        // --- Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Resize Handling
+        window.addEventListener('resize', () => {
+            const w = viewport.clientWidth;
+            const h = viewport.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+
+        // Initialize
+        setupUI();
+        updateTransform();
+        animate();
+
+    </script>
+</body>
+</html>

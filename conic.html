@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圆锥曲线实验室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; overflow: hidden; background: #0f172a; 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            color: #e2e8f0;
+        }
+        canvas { display: block; }
+        
+        /* Custom scrollbar for controls */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+        .slider-thumb {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #334155;
+            outline: none;
+            opacity: 0.7;
+            transition: .2s;
+        }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #f59e0b;
+            cursor: pointer;
+            border: 2px solid #0f172a;
+        }
+        .slider-thumb:hover { opacity: 1; }
+
+        .mode-btn {
+            @apply px-4 py-2 text-xs font-bold uppercase tracking-wider border border-slate-700 rounded hover:bg-slate-800 transition-colors;
+        }
+        .mode-btn.active {
+            @apply bg-orange-600 border-orange-500 text-white shadow-[0_0_15px_rgba(234,88,12,0.4)];
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 pointer-events-none flex flex-col z-10">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 bg-slate-900/80 backdrop-blur-sm border-b border-slate-700 pointer-events-auto">
+            <div class="flex items-center gap-4">
+                <a href="index.html" class="text-slate-400 hover:text-white transition font-bold text-sm">← 退出</a>
+                <h1 class="text-orange-500 font-bold text-lg tracking-widest">圆锥曲线实验室 <span class="text-slate-500 text-xs ml-2">v1.0</span></h1>
+            </div>
+            
+            <!-- Mode Switcher -->
+            <div class="flex gap-2">
+                <button onclick="setMode('ellipse')" id="btn-ellipse" class="mode-btn active">椭圆 (轨道)</button>
+                <button onclick="setMode('parabola')" id="btn-parabola" class="mode-btn">抛物线 (天线)</button>
+                <button onclick="setMode('hyperbola')" id="btn-hyperbola" class="mode-btn">双曲线 (引力)</button>
+            </div>
+        </div>
+
+        <!-- Controls (Bottom Right) -->
+        <div class="absolute bottom-6 right-6 w-64 bg-slate-900/90 backdrop-blur border border-slate-700 p-4 rounded-lg pointer-events-auto space-y-4 shadow-2xl">
+            <div class="text-xs text-orange-400 font-bold border-b border-slate-700 pb-2 mb-2 uppercase">参数设置</div>
+            
+            <!-- Dynamic Controls Container -->
+            <div id="controls-container" class="space-y-4">
+                <!-- Injected via JS -->
+            </div>
+            
+            <div id="info-text" class="text-[10px] text-slate-400 leading-relaxed mt-2 pt-2 border-t border-slate-700">
+                <!-- Info text -->
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, cx, cy;
+
+        // Configuration State
+        const state = {
+            mode: 'ellipse', // ellipse, parabola, hyperbola
+            t: 0,
+            
+            // Ellipse Params
+            eccentricity: 0.6,
+            semiMajorAxis: 200,
+            
+            // Parabola Params
+            pVal: 80, // Distance to focus
+            
+            // Hyperbola Params
+            hypEccentricity: 1.4,
+            hypScale: 100,
+            
+            particles: []
+        };
+
+        // --- Init & Resize ---
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            cx = width / 2;
+            cy = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Modes Management ---
+        function setMode(mode) {
+            state.mode = mode;
+            state.particles = []; // Reset particles
+            
+            // Update UI Buttons
+            ['ellipse', 'parabola', 'hyperbola'].forEach(m => {
+                document.getElementById(`btn-${m}`).classList.toggle('active', m === mode);
+            });
+            
+            updateControls();
+        }
+
+        function updateControls() {
+            const container = document.getElementById('controls-container');
+            const info = document.getElementById('info-text');
+            container.innerHTML = '';
+
+            if (state.mode === 'ellipse') {
+                createSlider(container, '离心率 (e)', 0, 0.9, state.eccentricity, 0.01, (v) => state.eccentricity = v);
+                createSlider(container, '轨道大小 (a)', 100, 300, state.semiMajorAxis, 1, (v) => state.semiMajorAxis = v);
+                info.innerHTML = "<strong class='text-orange-300'>行星轨道</strong><br>行星以太阳为焦点沿椭圆轨道运行。近日点快，远日点慢（开普勒第二定律）。";
+            } 
+            else if (state.mode === 'parabola') {
+                createSlider(container, '焦距 (p)', 30, 150, state.pVal, 1, (v) => state.pVal = v);
+                info.innerHTML = "<strong class='text-orange-300'>卫星天线</strong><br>平行于轴线射入的信号经抛物线反射后，精确汇聚于焦点。";
+            } 
+            else if (state.mode === 'hyperbola') {
+                createSlider(container, '离心率 (e)', 1.1, 3.0, state.hypEccentricity, 0.1, (v) => state.hypEccentricity = v);
+                info.innerHTML = "<strong class='text-orange-300'>引力助推</strong><br>物体（如彗星）从无穷远处接近大质量天体，绕其转动并沿双曲线路径飞离。";
+            }
+        }
+
+        function createSlider(parent, label, min, max, val, step, callback) {
+            const wrapper = document.createElement('div');
+            
+            const header = document.createElement('div');
+            header.className = "flex justify-between text-xs mb-1";
+            header.innerHTML = `<span class="text-slate-300">${label}</span><span id="val-${label}" class="text-orange-400 font-mono">${val}</span>`;
+            
+            const input = document.createElement('input');
+            input.type = 'range';
+            input.className = 'slider-thumb';
+            input.min = min; input.max = max; input.step = step; input.value = val;
+            
+            input.oninput = (e) => {
+                const v = parseFloat(e.target.value);
+                wrapper.querySelector('span:last-child').innerText = v.toFixed(step < 0.1 ? 2 : 0);
+                callback(v);
+            };
+
+            wrapper.appendChild(header);
+            wrapper.appendChild(input);
+            parent.appendChild(wrapper);
+        }
+
+        // --- Render Loop ---
+        function loop() {
+            // Clear
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Grid
+            drawGrid();
+
+            // Draw Mode
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            if (state.mode === 'ellipse') drawEllipseMode();
+            else if (state.mode === 'parabola') drawParabolaMode();
+            else if (state.mode === 'hyperbola') drawHyperbolaMode();
+
+            ctx.restore();
+
+            state.t += 0.01;
+            requestAnimationFrame(loop);
+        }
+
+        // --- Helper: Grid ---
+        function drawGrid() {
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            // Vertical
+            for(let x = cx % 50; x < width; x+=50) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
+            // Horizontal
+            for(let y = cy % 50; y < height; y+=50) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+            ctx.stroke();
+
+            // Axes
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, 0); ctx.lineTo(cx, height);
+            ctx.moveTo(0, cy); ctx.lineTo(width, cy);
+            ctx.stroke();
+        }
+
+        // --- MODE 1: ELLIPSE (Orbit) ---
+        function drawEllipseMode() {
+            const a = state.semiMajorAxis;
+            const e = state.eccentricity;
+            const b = a * Math.sqrt(1 - e*e);
+            const c = a * e; // Distance to focus
+
+            // Draw Orbit Path
+            ctx.strokeStyle = '#38bdf8'; // Sky Blue
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, a, b, 0, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Draw Foci
+            drawPoint(-c, 0, '#f59e0b', '太阳 (焦点)');
+            drawPoint(c, 0, '#64748b', '焦点 2');
+
+            // Draw Sun
+            ctx.fillStyle = '#f59e0b';
+            ctx.shadowBlur = 20; ctx.shadowColor = '#f59e0b';
+            ctx.beginPath(); ctx.arc(-c, 0, 10, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Animate Planet
+            // Mean anomaly M = n * t
+            // Solve Kepler Eq: M = E - e*sin(E) approx for visualization
+            // Visual approx: speed depends on distance r. v ~ 1/r
+            
+            // Simple visual approach: Parametric angle t.
+            // But to show kepler law (fast at perihelion), we need to adjust t.
+            // Let's just use raw geometry for now, but animate t non-linearly.
+            // Non-linear t: let's just cycle 0..2PI
+            const angle = state.t % (Math.PI * 2);
+            
+            // To fake Kepler: vary angular speed.
+            // Simple hack: We calculate position based on current angle, 
+            // but we increment angle faster when r is small.
+            // But state.t is global linear. 
+            // Let's maintain a local `orbitTheta` in state for this mode.
+            if (state.orbitTheta === undefined) state.orbitTheta = 0;
+            
+            // r = a(1-e^2) / (1 + e cos theta) relative to focus
+            // But drawing ctx.ellipse is relative to center.
+            // Let's use parametric: x = a cos E, y = b sin E.
+            // E is eccentric anomaly.
+            // dM/dt is constant. M = E - e sin E.
+            // We can approximate E increase. 
+            // Speed factor: (1 + e cos true_anomaly)^2 (roughly).
+            
+            // Easier visual hack: Calculate current r from focus. 
+            // Current pos relative to center:
+            let ex = a * Math.cos(state.orbitTheta);
+            let ey = b * Math.sin(state.orbitTheta);
+            
+            // Dist to Sun (-c, 0)
+            let dist = Math.sqrt(Math.pow(ex - (-c), 2) + Math.pow(ey - 0, 2));
+            
+            // Speed up when closer. Min dist = a(1-e), Max = a(1+e).
+            // Speed range arbitrary factor
+            let speed = 0.02 * (a / dist); 
+            state.orbitTheta += speed;
+
+            // Draw Planet
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+            ctx.beginPath(); ctx.arc(ex, ey, 6, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Draw Radius Vector
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.beginPath(); ctx.moveTo(-c, 0); ctx.lineTo(ex, ey); ctx.stroke();
+            
+            // Label
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px monospace';
+            ctx.fillText('行星', ex + 10, ey - 10);
+        }
+
+        // --- MODE 2: PARABOLA (Dish) ---
+        function drawParabolaMode() {
+            // y^2 = 4px (Opening right) or x^2 = 4py (Opening up).
+            // Let's do opening Left for the dish, receiving signals from Right.
+            // Equation: y^2 = -4px. Focus at (-p, 0).
+            const p = state.pVal;
+            
+            // Draw Curve
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // Draw segments
+            for(let y = -250; y <= 250; y+=5) {
+                let x = -(y*y) / (4*p);
+                if (y===-250) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw Focus
+            drawPoint(-p, 0, '#f59e0b', '接收器 (焦点)');
+            
+            // Draw Dish Structure (Visual)
+            ctx.strokeStyle = '#334155';
+            ctx.beginPath();
+            ctx.moveTo(-(250*250)/(4*p), -250);
+            ctx.lineTo(50, -250); // Frame
+            ctx.moveTo(-(250*250)/(4*p), 250);
+            ctx.lineTo(50, 250); // Frame
+            ctx.stroke();
+
+            // Signals (Particles)
+            // Spawn particles at right side
+            if (state.t % 0.5 < 0.02) {
+                state.particles.push({
+                    x: 400, 
+                    y: (Math.random() - 0.5) * 400,
+                    vx: -4,
+                    vy: 0,
+                    phase: 'in' // 'in' or 'reflect'
+                });
+            }
+
+            ctx.fillStyle = '#ec4899';
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                let pt = state.particles[i];
+                
+                pt.x += pt.vx;
+                pt.y += pt.vy;
+
+                // Check collision with parabola x = -y^2/4p
+                let parabX = -(pt.y * pt.y) / (4 * p);
+                
+                if (pt.phase === 'in' && pt.x <= parabX) {
+                    pt.phase = 'reflect';
+                    pt.x = parabX; // Snap
+                    
+                    // Reflect towards focus (-p, 0)
+                    let dx = -p - pt.x;
+                    let dy = 0 - pt.y;
+                    let len = Math.sqrt(dx*dx + dy*dy);
+                    pt.vx = (dx/len) * 4;
+                    pt.vy = (dy/len) * 4;
+                }
+
+                // Draw Particle
+                ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2); ctx.fill();
+                
+                // Trail
+                ctx.fillStyle = `rgba(236, 72, 153, ${0.5})`;
+                ctx.beginPath(); ctx.arc(pt.x - pt.vx*2, pt.y - pt.vy*2, 2, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ec4899'; // Reset
+
+                // Kill if near focus or out of bounds
+                let distToFocus = Math.sqrt(Math.pow(pt.x - (-p), 2) + Math.pow(pt.y, 2));
+                if (pt.phase === 'reflect' && distToFocus < 5) {
+                    state.particles.splice(i, 1);
+                }
+            }
+        }
+
+        // --- MODE 3: HYPERBOLA (Gravity Assist) ---
+        function drawHyperbolaMode() {
+            const e = state.hypEccentricity;
+            const a = 60; // Fixed scale for 'a' (vertex distance)
+            const c = a * e; // Focus distance
+            const b = Math.sqrt(c*c - a*a);
+            
+            // Hyperbola: x^2/a^2 - y^2/b^2 = 1.
+            // Right branch (x > 0): x = a * cosh(t), y = b * sinh(t) 
+            // OR x = a / cos(t), y = b * tan(t)
+            
+            // Rotate 90 deg for visual (Up/Down) or keep Left/Right?
+            // Let's keep Left/Right.
+            // Planet at Focus (c, 0).
+            // Object comes from infinity, wraps around focus.
+            // Actually, for gravity assist, the object follows the branch *closest* to the focus if attractive?
+            // No, for attractive gravity (Newtonian), orbits are conic sections with mass at focus.
+            // Hyperbolic orbit: Path is the branch of the hyperbola that wraps *around* the focus.
+            
+            // So we draw the LEFT branch (x < 0) if Focus is at origin?
+            // Let's place Focus at (0,0) for simplicity in visualization context?
+            // No, let's keep geometric center at (0,0).
+            // Focus is at (-c, 0). Object comes from +x, +y, swings around (-c, 0).
+            // That would be the branch x < 0.
+            
+            // Draw Asymptotes: y = +/- (b/a)x
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(-width/2, (-width/2)*(b/a)); ctx.lineTo(width/2, (width/2)*(b/a));
+            ctx.moveTo(-width/2, -(-width/2)*(b/a)); ctx.lineTo(width/2, -(width/2)*(b/a));
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw Hyperbola Branch (The one wrapping the focus)
+            // Let's assume Focus is at (-c, 0). The branch vertex is at (-a, 0).
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let t = -2.5; t <= 2.5; t+=0.1) {
+                // x = -a cosh t, y = b sinh t
+                let x = -a * Math.cosh(t);
+                let y = b * Math.sinh(t);
+                if (t === -2.5) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw Planet (Focus)
+            drawPoint(-c, 0, '#f59e0b', '大质量天体');
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+            ctx.beginPath(); ctx.arc(-c, 0, 30, 0, Math.PI*2); ctx.fill();
+
+            // Animate Object
+            // Parametric t moves from -infinity to +infinity
+            // We can map linear time to 't' via some easing to make it look constant speed-ish
+            // But sinh grows fast.
+            let animT = (state.t * 2 % 6) - 3; // Range -3 to 3
+            let objX = -a * Math.cosh(animT);
+            let objY = b * Math.sinh(animT);
+
+            // Comet
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 15; ctx.shadowColor = '#fff';
+            ctx.beginPath(); ctx.arc(objX, objY, 5, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Velocity Vector
+            // dx/dt = -a sinh t, dy/dt = b cosh t
+            let vx = -a * Math.sinh(animT);
+            let vy = b * Math.cosh(animT);
+            // Normalize for visual vector
+            let len = Math.sqrt(vx*vx + vy*vy);
+            vx /= len; vy /= len;
+            
+            ctx.strokeStyle = '#ec4899';
+            ctx.beginPath(); ctx.moveTo(objX, objY); ctx.lineTo(objX + vx*40, objY + vy*40); ctx.stroke();
+        }
+
+        function drawPoint(x, y, color, label) {
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+            if (label) {
+                ctx.fillStyle = color;
+                ctx.font = '10px monospace';
+                ctx.fillText(label, x + 8, y + 3);
+            }
+        }
+
+        // Init UI
+        setMode('ellipse');
+        loop();
+
+    </script>
+</body>
+</html>

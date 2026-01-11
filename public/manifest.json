@@ -1,0 +1,21 @@
+{
+  "short_name": "NekoPong",
+  "name": "Neko Pong: Cyber Clash",
+  "icons": [
+    {
+      "src": "https://em-content.zobj.net/source/microsoft-teams/337/cat-face_1f431.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://em-content.zobj.net/source/microsoft-teams/337/cat-face_1f431.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "orientation": "landscape"
+}

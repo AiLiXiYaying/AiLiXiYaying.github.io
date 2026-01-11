@@ -1,0 +1,11 @@
+{
+  "name": "neko-pong",
+  "version": "2.0.0",
+  "description": "Vanilla JS implementation of Neko Pong",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

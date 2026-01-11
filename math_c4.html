@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apply 1: 炼金工坊</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Zcool+KuaiLe&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #1e1b4b; /* Indigo-950 */
+            color: #e0e7ff; 
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+        }
+
+        .glass-panel {
+            background: rgba(30, 27, 75, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(129, 140, 248, 0.3);
+            box-shadow: 0 0 40px rgba(79, 70, 229, 0.2);
+        }
+
+        .potion-bottle {
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .potion-bottle:hover { transform: scale(1.1); filter: brightness(1.2); }
+
+        .cauldron {
+            width: 150px; height: 120px;
+            background: #312e81;
+            border-radius: 0 0 50% 50%;
+            position: relative;
+            border: 4px solid #4338ca;
+            overflow: hidden;
+        }
+        .liquid {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+            background: linear-gradient(to top, #4f46e5, #818cf8);
+            transition: height 0.5s;
+        }
+        .bubble {
+            position: absolute; background: rgba(255,255,255,0.3); border-radius: 50%;
+            animation: rise 2s infinite;
+        }
+        @keyframes rise { 0% { bottom: 0; opacity: 0; } 50% { opacity: 1; } 100% { bottom: 100%; opacity: 0; } }
+
+        .title-font { font-family: 'Zcool KuaiLe', cursive; }
+        
+        .runic-btn {
+            background: #4f46e5; border: 1px solid #818cf8;
+            color: white; font-weight: bold; padding: 10px; border-radius: 8px;
+            box-shadow: 0 4px 0 #3730a3; transition: all 0.1s;
+        }
+        .runic-btn:active { transform: translateY(4px); box-shadow: none; }
+        .runic-btn:disabled { background: #312e81; border-color: #4338ca; color: #6366f1; box-shadow: none; transform: translateY(4px); }
+    </style>
+</head>
+<body class="h-screen w-full flex items-center justify-center relative">
+
+    <a href="index.html" class="absolute top-4 left-4 z-50 px-4 py-2 bg-indigo-900/80 rounded-full text-indigo-300 font-bold border border-indigo-500/50 hover:bg-indigo-800 transition text-sm">
+        ← 返回大厅
+    </a>
+
+    <!-- Main Game Area -->
+    <div class="w-full max-w-4xl h-[90vh] flex gap-6 p-4">
+        
+        <!-- Left: Order & Workspace -->
+        <div class="flex-1 flex flex-col gap-6">
+            <!-- Order Card -->
+            <div class="glass-panel p-6 rounded-3xl flex items-center gap-6 relative overflow-hidden">
+                <div class="absolute -right-10 -top-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl"></div>
+                <div class="text-5xl animate-pulse">🧙‍♀️</div>
+                <div>
+                    <h2 class="text-indigo-300 font-bold text-xs uppercase tracking-widest mb-1">Current Order</h2>
+                    <p id="order-text" class="text-xl font-bold text-white leading-tight">
+                        Loading...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Workspace -->
+            <div class="flex-1 glass-panel rounded-3xl p-8 relative flex flex-col items-center justify-center">
+                <!-- Mode: Multiplication (Cauldron) -->
+                <div id="mode-mult" class="hidden flex-col items-center w-full">
+                    <div class="cauldron mb-8">
+                        <div class="liquid" id="cauldron-liquid"></div>
+                        <!-- Bubbles injected by JS -->
+                    </div>
+                    <div class="flex flex-wrap justify-center gap-4 mb-8" id="ingredients-area">
+                        <!-- Ingredients -->
+                    </div>
+                    <div class="text-center">
+                        <p class="text-indigo-300 text-sm mb-2">投入原料</p>
+                        <div class="text-3xl font-mono" id="mult-counter">0 / 0</div>
+                    </div>
+                </div>
+
+                <!-- Mode: Division (Bottling) -->
+                <div id="mode-div" class="hidden flex-col items-center w-full">
+                    <div class="text-center mb-8">
+                        <div class="text-4xl font-black text-indigo-400 mb-2" id="div-total-mana">100 MP</div>
+                        <div class="text-xs text-indigo-300">大锅里的魔力总量</div>
+                    </div>
+                    
+                    <div class="flex justify-center gap-6 w-full" id="bottles-area">
+                        <!-- Bottles -->
+                    </div>
+                    
+                    <div class="mt-8 text-center">
+                        <p class="text-xs text-indigo-400">点击瓶子分配魔力 (每点击一次分配 10 MP)</p>
+                    </div>
+                </div>
+
+                <!-- Success Overlay -->
+                <div id="success-overlay" class="absolute inset-0 bg-indigo-950/90 z-20 hidden flex-col items-center justify-center text-center">
+                    <div class="text-6xl mb-4">✨</div>
+                    <h2 class="text-3xl font-black text-white mb-2 title-font">炼成成功!</h2>
+                    <button onclick="nextLevel()" class="mt-6 px-8 py-3 bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-full shadow-lg transition">
+                        下一个订单 ➔
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Control Panel -->
+        <div class="w-80 glass-panel rounded-3xl p-6 flex flex-col">
+            <div class="mb-6 border-b border-indigo-500/30 pb-4">
+                <h3 class="text-indigo-400 font-bold text-sm uppercase tracking-widest">Alchemist's Log</h3>
+                <div id="level-indicator" class="text-2xl font-black text-white">Level 1</div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto text-sm text-indigo-200 space-y-4 font-mono" id="log-area">
+                <p>> 系统初始化...</p>
+                <p>> 等待订单...</p>
+            </div>
+
+            <!-- Numpad for Mult Mode -->
+            <div id="numpad" class="grid grid-cols-3 gap-2 mt-4 hidden">
+                <button class="runic-btn" onclick="inputNum(1)">1</button>
+                <button class="runic-btn" onclick="inputNum(2)">2</button>
+                <button class="runic-btn" onclick="inputNum(3)">3</button>
+                <button class="runic-btn" onclick="inputNum(4)">4</button>
+                <button class="runic-btn" onclick="inputNum(5)">5</button>
+                <button class="runic-btn" onclick="inputNum(6)">6</button>
+                <button class="runic-btn" onclick="inputNum(7)">7</button>
+                <button class="runic-btn" onclick="inputNum(8)">8</button>
+                <button class="runic-btn" onclick="inputNum(9)">9</button>
+                <button class="runic-btn text-xs" onclick="clearInput()">CLR</button>
+                <button class="runic-btn" onclick="inputNum(0)">0</button>
+                <button class="runic-btn bg-emerald-600 border-emerald-500" onclick="submitMult()">OK</button>
+            </div>
+
+            <button id="btn-reset-div" class="hidden mt-4 w-full runic-btn bg-red-600 border-red-500" onclick="resetDivision()">
+                重置分配
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        const LEVELS = [
+            { 
+                mode: 'mult', 
+                text: "我要 4 瓶【初级治疗药水】。每瓶需要 3 个史莱姆凝胶。", 
+                a: 4, b: 3, 
+                item: '🦠', 
+                hint: "4 个 3 是多少？" 
+            },
+            { 
+                mode: 'div', 
+                text: "把这 80 MP 的魔力平均分进 4 个水晶瓶里。", 
+                total: 80, count: 4, 
+                hint: "80 除以 4..." 
+            },
+            { 
+                mode: 'mult', 
+                text: "工会订单：6 份【火球卷轴】。每份需要 5 根凤凰羽毛。", 
+                a: 6, b: 5, 
+                item: '🪶', 
+                hint: "6 × 5 = ?" 
+            },
+            { 
+                mode: 'div', 
+                text: "这锅里有 150 MP 浓缩液，我要分装到 3 个大瓶子里。", 
+                total: 150, count: 3, 
+                hint: "150 / 3 = ?" 
+            },
+            {
+                mode: 'mult',
+                text: "最终试炼：我要 8 瓶【万能药】。每瓶 8 种草药。",
+                a: 8, b: 8,
+                item: '🌿',
+                hint: "8 × 8..."
+            }
+        ];
+
+        let currentLvl = 0;
+        let userInput = "";
+        let bottleFill = [];
+        
+        function initLevel() {
+            if (currentLvl >= LEVELS.length) {
+                document.getElementById('order-text').innerText = "所有订单已完成！大师级炼金术师！";
+                return;
+            }
+
+            const level = LEVELS[currentLvl];
+            document.getElementById('level-indicator').innerText = `Level ${currentLvl + 1}`;
+            document.getElementById('order-text').innerText = level.text;
+            document.getElementById('success-overlay').classList.add('hidden');
+            
+            addLog(`> 收到新订单: ${level.mode === 'mult' ? '合成' : '分装'}`);
+
+            if (level.mode === 'mult') {
+                setupMult(level);
+            } else {
+                setupDiv(level);
+            }
+        }
+
+        // --- Multiplication Logic ---
+        function setupMult(level) {
+            document.getElementById('mode-mult').classList.remove('hidden');
+            document.getElementById('mode-mult').classList.add('flex');
+            document.getElementById('mode-div').classList.add('hidden');
+            document.getElementById('mode-div').classList.remove('flex');
+            
+            document.getElementById('numpad').classList.remove('hidden');
+            document.getElementById('btn-reset-div').classList.add('hidden');
+
+            // Visuals
+            const area = document.getElementById('ingredients-area');
+            area.innerHTML = '';
+            for(let i=0; i<level.b; i++) {
+                const el = document.createElement('div');
+                el.className = 'text-4xl animate-bounce';
+                el.style.animationDelay = i*0.1 + 's';
+                el.innerText = level.item;
+                area.appendChild(el);
+            }
+
+            userInput = "";
+            updateMultDisplay();
+        }
+
+        function inputNum(n) {
+            if (userInput.length < 4) userInput += n;
+            updateMultDisplay();
+        }
+        function clearInput() {
+            userInput = "";
+            updateMultDisplay();
+        }
+        function updateMultDisplay() {
+            const level = LEVELS[currentLvl];
+            document.getElementById('mult-counter').innerText = `${userInput || 0} / ${level.a * level.b}`;
+        }
+        function submitMult() {
+            const level = LEVELS[currentLvl];
+            const ans = parseInt(userInput);
+            if (ans === level.a * level.b) {
+                addLog("> 合成成功！");
+                document.getElementById('cauldron-liquid').style.height = '100%';
+                setTimeout(showSuccess, 1000);
+            } else {
+                addLog("> 失败！数量不对。");
+                document.getElementById('mult-counter').classList.add('text-red-500');
+                setTimeout(() => document.getElementById('mult-counter').classList.remove('text-red-500'), 500);
+                userInput = "";
+                updateMultDisplay();
+            }
+        }
+
+        // --- Division Logic ---
+        function setupDiv(level) {
+            document.getElementById('mode-div').classList.remove('hidden');
+            document.getElementById('mode-div').classList.add('flex');
+            document.getElementById('mode-mult').classList.add('hidden');
+            document.getElementById('mode-mult').classList.remove('flex');
+
+            document.getElementById('numpad').classList.add('hidden');
+            document.getElementById('btn-reset-div').classList.remove('hidden');
+
+            document.getElementById('div-total-mana').innerText = level.total + " MP";
+            
+            const area = document.getElementById('bottles-area');
+            area.innerHTML = '';
+            bottleFill = new Array(level.count).fill(0);
+
+            for(let i=0; i<level.count; i++) {
+                const b = document.createElement('div');
+                b.className = 'w-16 h-32 border-4 border-white/20 rounded-full relative overflow-hidden cursor-pointer active:scale-95 transition bg-indigo-900/50';
+                b.onclick = () => fillBottle(i);
+                
+                const liquid = document.createElement('div');
+                liquid.id = `liq-${i}`;
+                liquid.className = 'absolute bottom-0 left-0 w-full bg-cyan-400 transition-all duration-300';
+                liquid.style.height = '0%';
+                
+                const label = document.createElement('div');
+                label.id = `lab-${i}`;
+                label.className = 'absolute inset-0 flex items-center justify-center font-bold text-white drop-shadow-md pointer-events-none';
+                label.innerText = '0';
+
+                b.appendChild(liquid);
+                b.appendChild(label);
+                area.appendChild(b);
+            }
+        }
+
+        function fillBottle(idx) {
+            const level = LEVELS[currentLvl];
+            const target = level.total / level.count;
+            
+            if (bottleFill[idx] < target + 20) { // Allow slight overflow visual but logic check is exact
+                bottleFill[idx] += 10; // Increment by 10
+                updateBottleVisual(idx, level.total);
+                checkDivWin();
+            }
+        }
+
+        function updateBottleVisual(idx, totalRef) {
+            // Visual scale: relative to total roughly, max height 100%
+            // Actually let's map target to 80% height
+            const level = LEVELS[currentLvl];
+            const target = level.total / level.count;
+            const pct = (bottleFill[idx] / target) * 80; 
+            
+            document.getElementById(`liq-${idx}`).style.height = pct + '%';
+            document.getElementById(`lab-${idx}`).innerText = bottleFill[idx];
+        }
+
+        function resetDivision() {
+            const level = LEVELS[currentLvl];
+            bottleFill = new Array(level.count).fill(0);
+            for(let i=0; i<level.count; i++) updateBottleVisual(i);
+            addLog("> 瓶子已清空");
+        }
+
+        function checkDivWin() {
+            const level = LEVELS[currentLvl];
+            const target = level.total / level.count;
+            if (bottleFill.every(v => v === target)) {
+                addLog("> 分装完美！");
+                setTimeout(showSuccess, 500);
+            }
+        }
+
+        // --- Common ---
+        function addLog(msg) {
+            const log = document.getElementById('log-area');
+            const p = document.createElement('p');
+            p.innerText = msg;
+            log.appendChild(p);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showSuccess() {
+            document.getElementById('success-overlay').classList.remove('hidden');
+            document.getElementById('success-overlay').classList.add('flex');
+        }
+
+        function nextLevel() {
+            currentLvl++;
+            initLevel();
+        }
+
+        initLevel();
+
+    </script>
+</body>
+</html>

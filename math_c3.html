@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History 1: 乘法与除法</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #f0f9ff; 
+            font-family: 'Nunito', system-ui, sans-serif; 
+            color: #0c4a6e; 
+            overflow-x: hidden;
+        }
+        
+        .book-container {
+            max-width: 800px; margin: 0 auto; min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 2rem; position: relative; z-index: 10;
+        }
+
+        .fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Chapter 1 Styles */
+        .messy-item {
+            position: absolute;
+            width: 40px; height: 40px; 
+            display: flex; align-items: center; justify-content: center;
+            background: #bae6fd; border-radius: 50%; border: 2px solid #7dd3fc;
+            font-size: 1.2rem;
+            transition: all 1s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Chapter 2 Styles */
+        .grid-cell {
+            width: 40px; height: 40px; background: #e0f2fe; border: 1px solid #bae6fd;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .grid-cell.active { background: #0ea5e9; border-color: #0284c7; }
+
+        .story-btn {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            color: white; font-weight: bold; padding: 12px 32px;
+            border-radius: 9999px; box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+            transition: all 0.3s;
+        }
+        .story-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 30px rgba(37, 99, 235, 0.4); }
+
+        .worker {
+            font-size: 2rem; cursor: pointer; transition: transform 0.2s;
+            position: relative;
+        }
+        .worker:hover { transform: scale(1.1); }
+        .worker:active { transform: scale(0.9); }
+        .worker-bag {
+            position: absolute; bottom: -5px; right: -5px; font-size: 0.8rem;
+            background: #facc15; color: #854d0e; border-radius: 50%; min-width: 20px; height: 20px;
+            padding: 0 4px; font-weight: bold; text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" class="fixed top-6 left-6 px-4 py-2 bg-white/80 backdrop-blur rounded-full text-xs font-bold text-sky-500 hover:text-sky-700 shadow-sm uppercase tracking-widest z-50 transition">
+        ← 返回大厅
+    </a>
+
+    <div class="book-container">
+        
+        <!-- STAGE 1: The Problem (Messy Addition) -->
+        <div id="chapter-1" class="text-center space-y-8 fade-in w-full max-w-xl">
+            <div class="inline-block px-4 py-1 bg-slate-200 text-slate-700 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">Chapter 01: 混乱的仓库</div>
+            <h1 class="text-4xl md:text-5xl font-black text-slate-800">重复的烦恼</h1>
+            <p class="text-slate-500 leading-relaxed">
+                还记得在便利店数12个罐头的痛苦吗？<br>
+                <span class="font-bold text-slate-700">3 + 3 + 3 + 3...</span><br>
+                当数量变多时，加法就变成了混乱的灾难。
+            </p>
+            
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-white flex flex-col items-center min-h-[340px] justify-between relative overflow-hidden">
+                <!-- Container for animation -->
+                <div id="messy-container" class="relative w-full h-48 border-2 dashed border-slate-200 rounded-xl bg-slate-50">
+                    <!-- JS Injected items -->
+                </div>
+                
+                <div class="font-mono text-xl text-slate-400 font-bold h-8 transition-all duration-500" id="add-equation">
+                    3 + 3 + 3 + 3 = ?
+                </div>
+                
+                <button onclick="organizeItems()" id="btn-organize" class="px-6 py-3 bg-slate-100 text-slate-600 rounded-lg hover:bg-sky-100 hover:text-sky-600 transition font-bold border border-slate-200 shadow-sm">
+                    ✨ 施展整理魔法
+                </button>
+            </div>
+
+            <button id="btn-c1" class="hidden story-btn animate-bounce">
+                这看起来整齐多了！ ➔
+            </button>
+        </div>
+
+
+        <!-- STAGE 2: Multiplication (Grid) -->
+        <div id="chapter-2" class="hidden text-center space-y-8 w-full max-w-xl">
+            <div class="inline-block px-4 py-1 bg-sky-200 text-sky-700 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">Chapter 02: 秩序之美</div>
+            <h1 class="text-4xl md:text-5xl font-black text-slate-800">乘法的诞生</h1>
+            <p class="text-slate-500 leading-relaxed">
+                看！当我们把东西排成整齐的<span class="font-bold text-sky-600">矩形</span>时。<br>
+                不需要一个个数。<br>
+                <span class="font-bold">4 行，每行 3 个</span>。<br>
+                这就是乘法：<span class="font-bold text-sky-600">4 × 3</span>
+            </p>
+            
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl shadow-sky-200/50 border border-white flex flex-col items-center">
+                <div class="text-xs text-sky-400 mb-4 font-mono">拖拽鼠标点亮 5x4 的区域</div>
+                
+                <div id="field-grid" class="grid grid-cols-5 gap-1 p-2 bg-slate-50 rounded mb-4 shadow-inner cursor-crosshair" onmouseleave="isDrawing=false">
+                    <!-- JS Generated -->
+                </div>
+
+                <div class="font-mono text-3xl font-black text-sky-600">
+                    <span id="dim-w">0</span> × <span id="dim-h">0</span> = <span id="dim-area">0</span>
+                </div>
+            </div>
+
+            <button id="btn-c2" class="hidden story-btn">
+                但是... 如果要反过来分呢？ ➔
+            </button>
+        </div>
+
+
+        <!-- STAGE 3: Division (Sharing) -->
+        <div id="chapter-3" class="hidden text-center space-y-8 w-full max-w-xl">
+            <div class="inline-block px-4 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">Chapter 03: 公平的分配</div>
+            <h1 class="text-4xl md:text-5xl font-black text-slate-800">除法的逆运算</h1>
+            <p class="text-slate-500 leading-relaxed">
+                如果你有 <span class="font-bold text-yellow-600">12</span> 个物品，<br>
+                要平均分给 <span class="font-bold">4</span> 个人。<br>
+                其实就是把刚才的矩形拆回成行。<br>
+                <span class="font-bold text-sky-600">除法</span> 只是乘法的倒影。
+            </p>
+
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl shadow-yellow-200/50 border border-white select-none">
+                <div class="mb-6">
+                    <div class="text-sm text-slate-400 mb-2">粮仓总量: 12</div>
+                    <div id="grain-pile" class="text-2xl tracking-widest cursor-pointer hover:scale-105 transition-transform inline-block">
+                        📦📦📦📦📦📦📦📦📦📦📦📦
+                    </div>
+                </div>
+
+                <div class="flex justify-around mt-10 relative">
+                    <!-- Arrows visual -->
+                    <div class="absolute -top-8 left-0 w-full flex justify-around text-slate-200 text-2xl">
+                        <span class="animate-bounce">⬇</span>
+                        <span class="animate-bounce" style="animation-delay: 0.1s">⬇</span>
+                        <span class="animate-bounce" style="animation-delay: 0.2s">⬇</span>
+                        <span class="animate-bounce" style="animation-delay: 0.3s">⬇</span>
+                    </div>
+
+                    <div class="worker transition hover:-translate-y-1" onclick="giveGrain(0)">👷<span class="worker-bag" id="bag-0">0</span></div>
+                    <div class="worker transition hover:-translate-y-1" onclick="giveGrain(1)">👷<span class="worker-bag" id="bag-1">0</span></div>
+                    <div class="worker transition hover:-translate-y-1" onclick="giveGrain(2)">👷<span class="worker-bag" id="bag-2">0</span></div>
+                    <div class="worker transition hover:-translate-y-1" onclick="giveGrain(3)">👷<span class="worker-bag" id="bag-3">0</span></div>
+                </div>
+                
+                <div class="text-xs text-slate-400 mt-6 bg-yellow-50 inline-block px-4 py-1 rounded-full">点击工人 (👷) 进行分配。12 ÷ 4 = ?</div>
+            </div>
+
+            <button id="btn-c3" class="hidden story-btn">
+                完美的平衡！ ➔
+            </button>
+        </div>
+
+
+        <!-- STAGE 4: Conclusion -->
+        <div id="chapter-4" class="hidden text-center space-y-8 w-full max-w-xl">
+            <div class="inline-block px-4 py-1 bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">Final Chapter: 炼金术的基础</div>
+            <h1 class="text-4xl md:text-5xl font-black text-slate-800">掌握倍率</h1>
+            <p class="text-slate-500 leading-relaxed">
+                乘法让我们快速通过<span class="font-bold text-sky-600">倍增</span>创造事物。<br>
+                除法让我们通过<span class="font-bold text-yellow-600">分配</span>维持平衡。<br>
+                这正是炼金术配方中的核心秘密。
+            </p>
+
+            <div class="bg-white p-10 rounded-[2rem] shadow-2xl shadow-indigo-200/50 border border-white flex flex-col items-center gap-6">
+                <div class="text-6xl animate-pulse">⚗️</div>
+                <div class="text-lg text-slate-600 font-medium">
+                    准备好在炼金工坊使用这些知识了吗？
+                </div>
+            </div>
+
+            <div class="flex gap-4 justify-center items-center">
+                <a href="index.html" class="px-6 py-3 text-slate-400 font-bold hover:text-slate-600 text-sm">返回大厅</a>
+                <a href="math_c4.html" class="story-btn from-indigo-600 to-violet-600 shadow-indigo-500/30">
+                    进入炼金工坊 (Apply) ➔
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function nextChapter(n) {
+            document.querySelectorAll('[id^="chapter-"]').forEach(el => el.classList.add('hidden'));
+            const next = document.getElementById(`chapter-${n}`);
+            next.classList.remove('hidden');
+            next.classList.add('fade-in');
+        }
+
+        // --- Chapter 1: Organize ---
+        const messyContainer = document.getElementById('messy-container');
+        const items = [];
+        
+        // Init Messy Piles
+        function initMessy() {
+            messyContainer.innerHTML = '';
+            for(let i=0; i<12; i++) {
+                const el = document.createElement('div');
+                el.className = 'messy-item';
+                el.innerText = '🥫';
+                // Random Scatter
+                const x = Math.random() * (messyContainer.offsetWidth - 40);
+                const y = Math.random() * (messyContainer.offsetHeight - 40);
+                el.style.left = x + 'px';
+                el.style.top = y + 'px';
+                el.style.transform = `rotate(${Math.random()*360}deg)`;
+                
+                messyContainer.appendChild(el);
+                items.push(el);
+            }
+        }
+        initMessy();
+
+        function organizeItems() {
+            document.getElementById('btn-organize').disabled = true;
+            document.getElementById('btn-organize').classList.add('opacity-50', 'cursor-not-allowed');
+            
+            // Grid layout: 4 rows of 3
+            // Calculate positions to center them
+            const w = 40; const gap = 10;
+            const cols = 4; const rows = 3;
+            const startX = (messyContainer.offsetWidth - (cols * (w+gap))) / 2;
+            const startY = (messyContainer.offsetHeight - (rows * (w+gap))) / 2;
+
+            items.forEach((el, i) => {
+                const c = i % cols;
+                const r = Math.floor(i / cols);
+                el.style.left = (startX + c * (w+gap)) + 'px';
+                el.style.top = (startY + r * (w+gap)) + 'px';
+                el.style.transform = `rotate(0deg)`;
+            });
+
+            const eq = document.getElementById('add-equation');
+            eq.style.opacity = 0;
+            
+            setTimeout(() => {
+                eq.innerText = "3 × 4 = 12";
+                eq.classList.remove('text-slate-400');
+                eq.classList.add('text-sky-600', 'text-2xl', 'scale-110');
+                eq.style.opacity = 1;
+                document.getElementById('btn-c1').classList.remove('hidden');
+            }, 1000);
+        }
+        document.getElementById('btn-c1').onclick = () => nextChapter(2);
+
+
+        // --- Chapter 2: Grid ---
+        const grid = document.getElementById('field-grid');
+        let isDrawing = false;
+        let cells = [];
+        
+        for(let i=0; i<20; i++) {
+            const c = document.createElement('div');
+            c.className = 'grid-cell';
+            c.onmouseenter = () => { if(isDrawing) activate(i); };
+            c.onmousedown = () => { isDrawing = true; activate(i); };
+            c.onmouseup = () => isDrawing = false;
+            grid.appendChild(c);
+            cells.push(c);
+        }
+
+        function activate(idx) {
+            const col = idx % 5;
+            const row = Math.floor(idx / 5);
+            let activeCount = 0;
+            cells.forEach((c, i) => {
+                const cCol = i % 5;
+                const cRow = Math.floor(i / 5);
+                if (cCol <= col && cRow <= row) {
+                    c.classList.add('active');
+                    activeCount++;
+                } else {
+                    c.classList.remove('active');
+                }
+            });
+            document.getElementById('dim-w').innerText = col + 1;
+            document.getElementById('dim-h').innerText = row + 1;
+            document.getElementById('dim-area').innerText = activeCount;
+            if (activeCount === 20) document.getElementById('btn-c2').classList.remove('hidden');
+        }
+        document.getElementById('btn-c2').onclick = () => nextChapter(3);
+
+
+        // --- Chapter 3: Division ---
+        let grain = 12;
+        let villagers = [0,0,0,0];
+        
+        function giveGrain(idx) {
+            if (grain > 0) {
+                grain--;
+                villagers[idx]++;
+                
+                // Visual feedback on bag
+                const bag = document.getElementById(`bag-${idx}`);
+                bag.innerText = villagers[idx];
+                bag.style.transform = 'scale(1.5)';
+                setTimeout(() => bag.style.transform = 'scale(1)', 100);
+
+                // Update pile
+                document.getElementById('grain-pile').innerText = "📦".repeat(grain);
+                
+                if (grain === 0) {
+                    if (villagers.every(v => v === 3)) {
+                        document.getElementById('btn-c3').classList.remove('hidden');
+                    } else {
+                        alert("分配不均！必须平均分配 (每个工人 3 个)。重置中...");
+                        resetGrain();
+                    }
+                }
+            }
+        }
+
+        function resetGrain() {
+            grain = 12;
+            villagers = [0,0,0,0];
+            document.getElementById('grain-pile').innerText = "📦".repeat(12);
+            for(let i=0; i<4; i++) document.getElementById(`bag-${i}`).innerText = 0;
+        }
+
+        document.getElementById('btn-c3').onclick = () => nextChapter(4);
+
+        // Fix layout on resize
+        window.addEventListener('resize', initMessy);
+
+    </script>
+</body>
+</html>

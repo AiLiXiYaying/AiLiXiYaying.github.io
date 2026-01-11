@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指数对数实验室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body { 
+            margin: 0; overflow: hidden; background: #0f172a; 
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            color: #e2e8f0;
+            user-select: none;
+        }
+        canvas { display: block; }
+        
+        .mode-btn {
+            @apply px-4 py-2 text-xs font-bold uppercase tracking-wider border border-slate-700 rounded hover:bg-slate-800 transition-colors flex items-center gap-2;
+        }
+        .mode-btn.active {
+            @apply bg-indigo-600 border-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.4)];
+        }
+        
+        /* Custom UI Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+        .slider-thumb {
+            -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px;
+            background: #334155; outline: none; opacity: 0.7; transition: .2s;
+        }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #6366f1; cursor: pointer; border: 2px solid #0f172a;
+        }
+        .slider-thumb:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+
+    <!-- Overlay UI -->
+    <div class="absolute inset-0 pointer-events-none flex flex-col z-20">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 bg-slate-900/90 backdrop-blur border-b border-slate-700 pointer-events-auto">
+            <div class="flex items-center gap-4">
+                <a href="index.html" class="text-slate-400 hover:text-white transition font-bold text-sm">← 退出</a>
+                <h1 class="text-indigo-400 font-bold text-lg tracking-widest">指数对数实验室</h1>
+            </div>
+            
+            <div class="flex gap-2">
+                <button onclick="setMode('growth')" id="btn-growth" class="mode-btn active">
+                    <span>🦠</span> 生长
+                </button>
+                <button onclick="setMode('decay')" id="btn-decay" class="mode-btn">
+                    <span>☢️</span> 衰变
+                </button>
+                <button onclick="setMode('spiral')" id="btn-spiral" class="mode-btn">
+                    <span>🐚</span> 螺线
+                </button>
+            </div>
+        </div>
+
+        <!-- Sidebar / Controls -->
+        <div class="absolute bottom-6 right-6 w-72 bg-slate-900/90 backdrop-blur border border-slate-700 p-4 rounded-lg pointer-events-auto space-y-4 shadow-2xl">
+            <!-- Dynamic Controls -->
+            <div id="controls-container" class="space-y-4"></div>
+            
+            <!-- Real-time Stats -->
+            <div id="stats-container" class="border-t border-slate-700 pt-3 mt-2">
+                <div class="flex justify-between text-xs font-mono text-slate-400">
+                    <span>时间 (t):</span> <span id="stat-time" class="text-white">0</span>
+                </div>
+                <div class="flex justify-between text-xs font-mono text-slate-400 mt-1">
+                    <span>数量 (N):</span> <span id="stat-pop" class="text-indigo-400 font-bold">0</span>
+                </div>
+            </div>
+
+            <!-- Mini Graph Container -->
+            <div class="h-32 w-full bg-slate-800/50 rounded border border-slate-700 relative overflow-hidden p-1">
+                <canvas id="miniChart"></canvas>
+            </div>
+
+            <div id="info-text" class="text-[10px] text-slate-500 leading-relaxed border-t border-slate-700 pt-2"></div>
+        </div>
+    </div>
+
+    <!-- Main Canvas -->
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, cx, cy;
+        let chartInstance = null;
+
+        // State Machine
+        const state = {
+            mode: 'growth',
+            t: 0,
+            playing: true,
+            
+            // Growth Mode
+            gRate: 0.5, // Reproduction Rate
+            gInit: 5,   // Initial Bacteria
+            gLimit: 1500,
+            bacteria: [],
+
+            // Decay Mode
+            dHalfLife: 50, // Half-life in frames (simulated)
+            dAtoms: [],    // Grid of atoms
+            dInit: 900,    // 30x30 grid
+
+            // Spiral Mode
+            sA: 5,   // Scale
+            sB: 0.15, // Expansion Rate
+            sRotation: 0,
+        };
+
+        // --- Chart.js Setup ---
+        function initChart() {
+            const ctxChart = document.getElementById('miniChart').getContext('2d');
+            chartInstance = new Chart(ctxChart, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'N(t)',
+                        data: [],
+                        borderColor: '#6366f1',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            display: true, 
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8', font: {size: 8} } 
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(val) {
+            if (!chartInstance) return;
+            const limit = 50;
+            if (chartInstance.data.labels.length > limit) {
+                chartInstance.data.labels.shift();
+                chartInstance.data.datasets[0].data.shift();
+            }
+            chartInstance.data.labels.push(state.t);
+            chartInstance.data.datasets[0].data.push(val);
+            chartInstance.update();
+        }
+
+        function resetChart() {
+            if (!chartInstance) return;
+            chartInstance.data.labels = [];
+            chartInstance.data.datasets[0].data = [];
+            chartInstance.update();
+        }
+
+        // --- Init & Resize ---
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            cx = width / 2;
+            cy = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+        initChart();
+
+        // --- Logic Control ---
+        function setMode(mode) {
+            state.mode = mode;
+            state.t = 0;
+            resetChart();
+            
+            // UI Toggles
+            ['growth', 'decay', 'spiral'].forEach(m => {
+                const btn = document.getElementById(`btn-${m}`);
+                btn.classList.toggle('active', m === mode);
+                // Color Themes
+                if (mode === 'growth') btn.classList.replace('border-indigo-500', 'border-emerald-500'); // Greenish
+            });
+
+            // Reset Sub-Sims
+            if (mode === 'growth') resetGrowth();
+            if (mode === 'decay') resetDecay();
+            if (mode === 'spiral') resetSpiral();
+
+            buildControls();
+        }
+
+        function buildControls() {
+            const container = document.getElementById('controls-container');
+            const info = document.getElementById('info-text');
+            container.innerHTML = '';
+
+            if (state.mode === 'growth') {
+                createButton(container, '重启模拟', resetGrowth);
+                createSlider(container, '生长率 (r)', 0.1, 1.0, state.gRate, 0.1, (v) => state.gRate = v);
+                info.innerHTML = `模型: <span class="text-emerald-400 font-mono">N(t) = N₀eʳᵗ</span><br>模拟细菌分裂。种群数量按固定间隔倍增（指数增长）。`;
+                chartInstance.data.datasets[0].borderColor = '#34d399'; // Emerald
+            } 
+            else if (state.mode === 'decay') {
+                createButton(container, '重置原子', resetDecay);
+                createSlider(container, '半衰期 (T½)', 10, 200, state.dHalfLife, 10, (v) => state.dHalfLife = v);
+                info.innerHTML = `模型: <span class="text-amber-400 font-mono">N(t) = N₀(1/2)^(t/T½)</span><br>模拟放射性衰变。每个原子在每帧都有恒定的衰变概率。`;
+                chartInstance.data.datasets[0].borderColor = '#fbbf24'; // Amber
+            }
+            else if (state.mode === 'spiral') {
+                createSlider(container, '扩张率 (b)', 0.05, 0.3, state.sB, 0.01, (v) => state.sB = v);
+                createSlider(container, '缩放 (a)', 1, 10, state.sA, 0.5, (v) => state.sA = v);
+                info.innerHTML = `模型: <span class="text-indigo-400 font-mono">r = aeᵇᶿ</span><br>对数螺线（等角螺线）。存在于鹦鹉螺、飓风和星系中。曲线与所有半径的夹角恒定。`;
+                chartInstance.data.datasets[0].borderColor = '#818cf8'; // Indigo
+            }
+        }
+
+        // --- Helpers ---
+        function createSlider(parent, label, min, max, val, step, callback) {
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <div class="flex justify-between text-xs mb-1 text-slate-300">
+                    <span>${label}</span><span class="font-mono text-white">${val.toFixed(2)}</span>
+                </div>
+                <input type="range" class="slider-thumb" min="${min}" max="${max}" step="${step}" value="${val}">
+            `;
+            const input = div.querySelector('input');
+            const span = div.querySelector('span:last-child');
+            input.oninput = (e) => {
+                const v = parseFloat(e.target.value);
+                span.innerText = v.toFixed(2);
+                callback(v);
+            };
+            parent.appendChild(div);
+        }
+
+        function createButton(parent, label, callback) {
+            const btn = document.createElement('button');
+            btn.className = "w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-bold tracking-widest transition text-slate-200";
+            btn.innerText = label;
+            btn.onclick = callback;
+            parent.appendChild(btn);
+        }
+
+        // --- SIM 1: GROWTH (Bacteria) ---
+        function resetGrowth() {
+            state.t = 0;
+            state.bacteria = [];
+            // Init Spawn
+            for(let i=0; i<state.gInit; i++) {
+                state.bacteria.push(createBacterium());
+            }
+        }
+
+        function createBacterium(x, y) {
+            return {
+                x: x || cx + (Math.random()-0.5)*50,
+                y: y || cy + (Math.random()-0.5)*50,
+                vx: (Math.random()-0.5)*0.5,
+                vy: (Math.random()-0.5)*0.5,
+                age: 0,
+                splitTime: 100 + Math.random() * 50 // Base split time, modified by rate
+            };
+        }
+
+        function updateGrowth() {
+            const currentPop = state.bacteria.length;
+            
+            // Limit to prevent browser crash
+            if (currentPop >= state.gLimit) {
+                document.getElementById('stat-pop').innerText = "达到上限";
+                return; 
+            }
+
+            // Logic: Effective split time scales inversely with gRate
+            // Higher rate = faster split
+            const splitFactor = 1 / state.gRate; 
+
+            for(let i = currentPop - 1; i >= 0; i--) {
+                let b = state.bacteria[i];
+                // Move
+                b.x += b.vx;
+                b.y += b.vy;
+                // Brownion-ish
+                b.vx += (Math.random()-0.5)*0.1;
+                b.vy += (Math.random()-0.5)*0.1;
+                // Contain
+                const R = 300; // Dish Radius
+                const dist = Math.sqrt((b.x-cx)**2 + (b.y-cy)**2);
+                if (dist > R) {
+                    const angle = Math.atan2(b.y-cy, b.x-cx);
+                    b.x = cx + Math.cos(angle)*R;
+                    b.y = cy + Math.sin(angle)*R;
+                    b.vx *= -1; b.vy *= -1;
+                }
+
+                b.age++;
+                
+                // Split Check
+                if (b.age > b.splitTime * splitFactor) {
+                    b.age = 0;
+                    // Mutate split time slightly
+                    b.splitTime = 100 + Math.random() * 50;
+                    // Add new
+                    state.bacteria.push(createBacterium(b.x, b.y));
+                }
+            }
+
+            // UI
+            document.getElementById('stat-pop').innerText = currentPop;
+            if (state.t % 10 === 0) updateChart(currentPop);
+        }
+
+        function drawGrowth() {
+            // Draw Dish
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(cx, cy, 305, 0, Math.PI*2); ctx.stroke();
+            
+            // Draw Bacteria
+            ctx.fillStyle = '#34d399'; // Emerald 400
+            ctx.shadowBlur = 4; ctx.shadowColor = '#34d399';
+            
+            for(let b of state.bacteria) {
+                ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        // --- SIM 2: DECAY (Radiation) ---
+        function resetDecay() {
+            state.t = 0;
+            state.dAtoms = [];
+            const cols = 30; 
+            const rows = 30;
+            const size = 12;
+            const offsetX = cx - (cols * size) / 2;
+            const offsetY = cy - (rows * size) / 2;
+
+            for(let i=0; i<cols*rows; i++) {
+                state.dAtoms.push({
+                    x: offsetX + (i % cols) * size,
+                    y: offsetY + Math.floor(i / cols) * size,
+                    alive: true,
+                    decayTime: -1
+                });
+            }
+        }
+
+        function updateDecay() {
+            let activeCount = 0;
+            
+            // Decay Probability per frame based on Half-Life
+            // N(t) = N0 * (1/2)^(t/HL)
+            // prob decay = 1 - (1/2)^(1/HL)
+            const decayProb = 1 - Math.pow(0.5, 1 / state.dHalfLife);
+
+            state.dAtoms.forEach(atom => {
+                if (atom.alive) {
+                    if (Math.random() < decayProb) {
+                        atom.alive = false;
+                        atom.decayTime = state.t; // Mark when it died for effect
+                    } else {
+                        activeCount++;
+                    }
+                }
+            });
+
+            document.getElementById('stat-pop').innerText = activeCount;
+            if (state.t % 10 === 0) updateChart(activeCount);
+        }
+
+        function drawDecay() {
+            const size = 10;
+            state.dAtoms.forEach(atom => {
+                if (atom.alive) {
+                    ctx.fillStyle = '#fbbf24'; // Amber (Radioactive)
+                    ctx.shadowBlur = 5; ctx.shadowColor = '#fbbf24';
+                    ctx.fillRect(atom.x, atom.y, size, size);
+                    ctx.shadowBlur = 0;
+                } else {
+                    // Flash white briefly after decay
+                    if (state.t - atom.decayTime < 10) {
+                        ctx.fillStyle = '#ffffff';
+                    } else {
+                        ctx.fillStyle = '#1e293b'; // Lead/Dark color
+                    }
+                    ctx.fillRect(atom.x, atom.y, size, size);
+                }
+            });
+        }
+
+        // --- SIM 3: SPIRAL (Logarithmic) ---
+        function resetSpiral() {
+            state.t = 0;
+            // No objects to store, purely math draw
+        }
+
+        function updateSpiral() {
+            state.sRotation += 0.01; // Slowly rotate the whole thing
+            // For the chart, we can plot r vs theta? Or just distance from center?
+            // Let's plot "Radius" for current max theta
+            const maxTheta = state.t * 0.1;
+            const r = state.sA * Math.exp(state.sB * maxTheta);
+            document.getElementById('stat-pop').innerText = r.toFixed(2) + " px";
+            if (state.t % 10 === 0) updateChart(r);
+        }
+
+        function drawSpiral() {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(state.sRotation);
+
+            // Draw Spiral Line
+            // r = a * e^(b*theta)
+            ctx.strokeStyle = '#818cf8'; // Indigo
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            // We draw up to a certain length based on time
+            const maxTheta = 20 + Math.sin(state.t * 0.05) * 2; // Breathing effect? 
+            // Actually, let's just draw fixed length but animate points moving OUT
+            
+            // Draw static shape first
+            const steps = 500;
+            const maxT = 6 * Math.PI; // 3 rotations
+            
+            let first = true;
+            for(let theta = 0; theta < maxT; theta += 0.05) {
+                const r = state.sA * Math.exp(state.sB * theta);
+                const x = r * Math.cos(theta);
+                const y = r * Math.sin(theta);
+                if (first) { ctx.moveTo(x, y); first = false; }
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw "Golden Rectangles" or Construction lines visual
+            // Just particles moving along the spiral
+            // Particle theta = t
+            // We spawn particles at center and move them out along spiral path
+            if (state.t % 5 === 0) {
+                state.bacteria.push({theta: 0}); // Reuse bacteria array as generic particle holder
+            }
+
+            ctx.fillStyle = '#fff';
+            for(let i=state.bacteria.length-1; i>=0; i--) {
+                let p = state.bacteria[i];
+                p.theta += 0.05; // Move along spiral
+                const r = state.sA * Math.exp(state.sB * p.theta);
+                const x = r * Math.cos(p.theta);
+                const y = r * Math.sin(p.theta);
+                
+                ctx.beginPath(); ctx.arc(x, y, 2 + p.theta/2, 0, Math.PI*2); ctx.fill();
+
+                if (r > Math.max(width, height)) state.bacteria.splice(i, 1);
+            }
+
+            ctx.restore();
+        }
+
+
+        // --- Main Loop ---
+        function loop() {
+            state.t++;
+            document.getElementById('stat-time').innerText = state.t;
+
+            // Clear
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Background Grid (Logarithmic?)
+            // Just standard grid for reference
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let x = cx % 50; x < width; x+=50) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
+            for(let y = cy % 50; y < height; y+=50) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+            ctx.stroke();
+
+            if (state.mode === 'growth') {
+                updateGrowth();
+                drawGrowth();
+            } else if (state.mode === 'decay') {
+                updateDecay();
+                drawDecay();
+            } else if (state.mode === 'spiral') {
+                updateSpiral();
+                drawSpiral();
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // Init
+        setMode('growth');
+        loop();
+
+    </script>
+</body>
+</html>

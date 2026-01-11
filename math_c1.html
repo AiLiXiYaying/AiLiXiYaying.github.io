@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History 0: 加法与减法</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #fff1f2; 
+            font-family: 'Nunito', system-ui, sans-serif; 
+            color: #881337; 
+            overflow-x: hidden;
+        }
+        
+        .book-container {
+            max-width: 800px; margin: 0 auto; min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 2rem; position: relative; z-index: 10;
+        }
+
+        .fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .stone { 
+            cursor: pointer; transition: transform 0.1s; user-select: none;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 50px; height: 50px; background: #e7e5e4; border-radius: 50%;
+            border-bottom: 4px solid #d6d3d1; font-size: 24px;
+        }
+        .stone:active { transform: translateY(4px); border-bottom: 0; }
+        .stone.taken { opacity: 0.2; transform: scale(0.8); cursor: default; }
+
+        .story-btn {
+            background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+            color: white; font-weight: bold; padding: 12px 32px;
+            border-radius: 9999px; box-shadow: 0 10px 20px rgba(225, 29, 72, 0.3);
+            transition: all 0.3s;
+        }
+        .story-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 30px rgba(225, 29, 72, 0.4); }
+
+        .sakura {
+            position: fixed; top: -20px; background-color: #fda4af;
+            border-radius: 100% 0 100% 0; opacity: 0.6; pointer-events: none;
+            animation: fall linear infinite; z-index: 0;
+        }
+        @keyframes fall { to { top: 110vh; transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" class="fixed top-6 left-6 px-4 py-2 bg-white/80 backdrop-blur rounded-full text-xs font-bold text-pink-500 hover:text-pink-700 shadow-sm uppercase tracking-widest z-50 transition">
+        ← 返回大厅
+    </a>
+
+    <div class="book-container">
+        
+        <!-- STAGE 1: Gathering (Addition) -->
+        <div id="chapter-1" class="text-center space-y-8 fade-in w-full max-w-lg">
+            <div class="inline-block px-4 py-1 bg-stone-200 text-stone-600 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">Chapter 01: 采集者的喜悦</div>
+            <h1 class="text-4xl md:text-5xl font-black text-slate-800">获得的艺术 (加法)</h1>
+            <p class="text-slate-500 leading-relaxed">
+                远古时代，拥有的东西越多，生存的机会越大。<br>
+                看！灌木丛里有浆果。<br>
+                <span class="font-bold text-pink-600">“加法”</span> 就是把新的东西放进你的篮子里。
+            </p>
+            
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl shadow-stone-200/50 border border-white">
+                <div class="text-xs text-stone-400 mb-4">点击浆果收集它们</div>
+                <div class="flex justify-center gap-4 mb-4 text-4xl">
+                    <div id="basket" class="w-20 h-20 bg-amber-100 rounded-b-2xl border-2 border-amber-200 flex items-center justify-center relative">
+                        🧺
+                        <span id="basket-count" class="absolute -top-3 -right-3 bg-red-500 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full font-bold">0</span>
+                    </div>
+                </div>
+                <div id="berry-patch" class="flex flex-wrap gap-3 justify-center">
+                    <!-- Berries -->
+                </div>
+            </div>
+
+            <button id="btn-c1" class="hidden story-btn">
+                篮子满了，但危险来了... ➔
+            </button>
+        </div>
+
+        <!-- STAGE 2: Loss (Subtraction) -->
+        <div id="chapter-2" class="hidden text-center space-y-8 w-full max-w-lg">
+            <div class="inline-block px-4 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">Chapter 02: 贪吃的猴子</div>
+            <h1 class="text-4xl md:text-5xl font-black text-slate-800">失去的痛苦 (减法)</h1>
+            <p class="text-slate-500 leading-relaxed">
+                你拥有 8 个浆果。但森林并不总是友好的。<br>
+                一只猴子冲了出来！它抢走了你的食物。<br>
+                <span class="font-bold text-red-600">“减法”</span> 就是从已有的东西里拿走。
+            </p>
+
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl shadow-red-200/50 border border-white">
+                <div class="flex justify-between items-center mb-6 px-4">
+                    <div class="text-center">
+                        <div class="text-sm text-stone-400 mb-1">你的浆果</div>
+                        <div id="my-berries" class="text-3xl font-black text-pink-600">8</div>
+                    </div>
+                    <div class="text-4xl animate-bounce">🐒</div>
+                    <div class="text-center">
+                        <div class="text-sm text-stone-400 mb-1">被抢走的</div>
+                        <div id="stolen-berries" class="text-3xl font-black text-stone-400">0</div>
+                    </div>
+                </div>
+                
+                <div class="h-2 bg-stone-100 rounded-full mb-6 overflow-hidden">
+                    <div id="berry-bar" class="h-full bg-pink-500 w-full transition-all duration-500"></div>
+                </div>
+
+                <div class="text-stone-500 text-sm italic mb-4" id="monkey-msg">点击猴子赶走它！(它会趁机偷吃)</div>
+                
+                <button onclick="shooMonkey()" class="w-full py-3 bg-stone-100 hover:bg-red-100 text-stone-600 hover:text-red-600 rounded-xl font-bold transition">
+                    👋 赶走猴子 (-1 浆果)
+                </button>
+            </div>
+
+            <button id="btn-c2" class="hidden story-btn">
+                终于保住了一些... ➔
+            </button>
+        </div>
+
+        <!-- STAGE 3: Conclusion -->
+        <div id="chapter-3" class="hidden text-center space-y-8 w-full max-w-xl">
+            <div class="inline-block px-4 py-1 bg-pink-100 text-pink-600 rounded-full text-xs font-bold mb-4 uppercase tracking-widest">Final Chapter: 生存法则</div>
+            <h1 class="text-4xl md:text-5xl font-black text-slate-800">加与减的平衡</h1>
+            <p class="text-slate-500 leading-relaxed">
+                生命就是一场加减法的游戏。<br>
+                我们努力<span class="text-pink-600 font-bold">采集 (+)</span>，但也必须接受<span class="text-stone-500 font-bold">消耗 (-)</span>。<br>
+                只要剩下的足够生存，就是胜利。
+            </p>
+
+            <div class="bg-white p-10 rounded-[2rem] shadow-2xl shadow-pink-200/50 border border-white flex flex-col items-center gap-6">
+                <div class="text-6xl">⚖️</div>
+                <div class="text-xl font-bold text-slate-700">
+                    <span class="text-pink-500">IN</span> - <span class="text-stone-400">OUT</span> = <span class="text-purple-600">LIFE</span>
+                </div>
+            </div>
+
+            <div class="flex gap-4 justify-center items-center">
+                <a href="index.html" class="px-6 py-3 text-slate-400 font-bold hover:text-slate-600 text-sm">返回大厅</a>
+                <a href="math_c2.html" class="story-btn from-purple-600 to-pink-600 shadow-purple-500/30">
+                    去便利店试炼 (Apply) ➔
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Init Sakura
+        setInterval(() => {
+            const s = document.createElement('div');
+            s.className = 'sakura';
+            s.style.width = Math.random()*10+5+'px'; s.style.height = s.style.width;
+            s.style.left = Math.random()*100+'vw'; s.style.animationDuration = Math.random()*3+4+'s';
+            document.body.appendChild(s);
+            setTimeout(()=>s.remove(), 7000);
+        }, 500);
+
+        // Stage 1
+        let basket = 0;
+        const berryPatch = document.getElementById('berry-patch');
+        for(let i=0; i<8; i++) {
+            const b = document.createElement('div');
+            b.className = 'stone text-2xl bg-pink-100 border-pink-200 text-pink-500 hover:bg-pink-200';
+            b.innerText = '🍒';
+            b.onclick = function() {
+                if(this.classList.contains('taken')) return;
+                this.classList.add('taken');
+                this.innerText = '✨';
+                basket++;
+                document.getElementById('basket-count').innerText = basket;
+                if(basket === 8) document.getElementById('btn-c1').classList.remove('hidden');
+            }
+            berryPatch.appendChild(b);
+        }
+        document.getElementById('btn-c1').onclick = () => nextChapter(2);
+
+        // Stage 2
+        let myBerries = 8;
+        let stolen = 0;
+        function shooMonkey() {
+            if(myBerries <= 3) {
+                document.getElementById('monkey-msg').innerText = "猴子跑了！你保住了剩下的食物。";
+                document.getElementById('btn-c2').classList.remove('hidden');
+                return;
+            }
+            myBerries--;
+            stolen++;
+            document.getElementById('my-berries').innerText = myBerries;
+            document.getElementById('stolen-berries').innerText = stolen;
+            document.getElementById('berry-bar').style.width = (myBerries/8)*100 + '%';
+        }
+        document.getElementById('btn-c2').onclick = () => nextChapter(3);
+
+        function nextChapter(n) {
+            document.querySelectorAll('[id^="chapter-"]').forEach(el => el.classList.add('hidden'));
+            const next = document.getElementById(`chapter-${n}`);
+            next.classList.remove('hidden');
+            next.classList.add('fade-in');
+        }
+    </script>
+</body>
+</html>

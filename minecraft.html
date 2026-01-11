@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>像素工坊</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; }
+        #instructions {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; color: white; cursor: pointer;
+            background: rgba(0,0,0,0.5); padding: 20px; border-radius: 10px;
+            font-family: monospace; user-select: none;
+        }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+            transform: translate(-50%, -50%); pointer-events: none;
+            mix-blend-mode: difference;
+        }
+        .hub-btn {
+            position: absolute; top: 1rem; left: 1rem; z-index: 60;
+            color: white; font-family: monospace; font-weight: bold;
+            text-decoration: none; background: rgba(0,0,0,0.5);
+            padding: 10px 15px; border-radius: 4px; 
+            border: 2px solid rgba(255,255,255,0.2);
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        .hub-btn:hover {
+            background: rgba(0,0,0,0.7);
+            border-color: white;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="hub-btn">← 退出游戏</a>
+    <div id="crosshair">
+        <svg width="20" height="20" viewBox="0 0 20 20">
+            <line x1="10" y1="0" x2="10" y2="20" stroke="white" stroke-width="2"/>
+            <line x1="0" y1="10" x2="20" y2="10" stroke="white" stroke-width="2"/>
+        </svg>
+    </div>
+    
+    <div id="instructions">
+        <h1 class="text-4xl font-bold mb-4">像素工坊</h1>
+        <p class="mb-2">点击开始</p>
+        <p class="text-sm opacity-80">WASD 移动 | 空格 跳跃 | 左键 挖掘 | 右键 放置</p>
+    </div>
+
+    <!-- Import Three.js via ES Modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // --- SETUP ---
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+        camera.position.y = 10;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 0, 750);
+
+        // Lighting
+        const light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 2.5);
+        light.position.set(0.5, 1, 0.75);
+        scene.add(light);
+
+        // Controls
+        const controls = new PointerLockControls(camera, document.body);
+        const instructions = document.getElementById('instructions');
+
+        instructions.addEventListener('click', () => controls.lock());
+        controls.addEventListener('lock', () => instructions.style.display = 'none');
+        controls.addEventListener('unlock', () => instructions.style.display = 'block');
+
+        scene.add(controls.getObject());
+
+        // --- TEXTURES (Procedural to avoid loading assets) ---
+        function createTexture(color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.fillRect(0,0,64,64);
+            // Add noise
+            for(let i=0; i<400; i++) {
+                ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.2})`;
+                ctx.fillRect(Math.random()*64, Math.random()*64, 4, 4);
+            }
+            // Border
+            ctx.strokeStyle = "rgba(0,0,0,0.1)";
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0,0,64,64);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.magFilter = THREE.NearestFilter;
+            return tex;
+        }
+
+        const grassTop = createTexture('#5bac36');
+        const grassSide = createTexture('#6d4e32'); // Dirt color base
+        const stoneTex = createTexture('#777777');
+
+        // Block Materials
+        const boxGeo = new THREE.BoxGeometry(50, 50, 50);
+        const grassMat = [
+            new THREE.MeshLambertMaterial({ map: grassSide }), // right
+            new THREE.MeshLambertMaterial({ map: grassSide }), // left
+            new THREE.MeshLambertMaterial({ map: grassTop }),  // top
+            new THREE.MeshLambertMaterial({ map: grassSide }), // bottom
+            new THREE.MeshLambertMaterial({ map: grassSide }), // front
+            new THREE.MeshLambertMaterial({ map: grassSide }), // back
+        ];
+        const highlightMat = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, opacity: 0.5, transparent: true });
+
+        // World Objects
+        const objects = [];
+        
+        // --- WORLD GENERATION ---
+        const floorGeo = new THREE.PlaneGeometry(2000, 2000, 100, 100);
+        floorGeo.rotateX(-Math.PI / 2);
+        
+        // Simple noise for terrain height
+        const positionAttribute = floorGeo.attributes.position;
+        for (let i = 0; i < positionAttribute.count; i++) {
+            const x = positionAttribute.getX(i);
+            const z = positionAttribute.getZ(i);
+            // Simple sin wave terrain
+            const y = Math.sin(x/100) * 20 + Math.cos(z/100) * 20;
+            positionAttribute.setY(i, y);
+        }
+        
+        // Add blocks based on simplified terrain logic
+        // We'll just create a flat chunk for performance and simplicity in this demo
+        for (let x = -10; x < 10; x++) {
+            for (let z = -10; z < 10; z++) {
+                const box = new THREE.Mesh(boxGeo, grassMat);
+                box.position.x = x * 50;
+                box.position.y = 0; // Flat floor
+                box.position.z = z * 50;
+                scene.add(box);
+                objects.push(box);
+                
+                // Random trees
+                if (Math.random() > 0.95) {
+                    for(let h=1; h<=3; h++) {
+                        const trunk = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({map: grassSide}));
+                        trunk.position.set(x*50, h*50, z*50);
+                        scene.add(trunk);
+                        objects.push(trunk);
+                    }
+                }
+            }
+        }
+
+        // Raycaster for interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        // Highlight Box
+        const highlightMesh = new THREE.Mesh(new THREE.BoxGeometry(50.1, 50.1, 50.1), highlightMat);
+        scene.add(highlightMesh);
+        highlightMesh.visible = false;
+
+        // --- MOVEMENT LOGIC ---
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let canJump = false;
+        let velocity = new THREE.Vector3();
+        let direction = new THREE.Vector3();
+        let prevTime = performance.now();
+
+        const onKeyDown = (event) => {
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = true; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+                case 'ArrowRight': case 'KeyD': moveRight = true; break;
+                case 'Space': if (canJump === true) velocity.y += 350; canJump = false; break;
+            }
+        };
+
+        const onKeyUp = (event) => {
+            switch (event.code) {
+                case 'ArrowUp': case 'KeyW': moveForward = false; break;
+                case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
+                case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+                case 'ArrowRight': case 'KeyD': moveRight = false; break;
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+        
+        // --- INTERACTION ---
+        document.addEventListener('mousedown', (event) => {
+            if (!controls.isLocked) return;
+            
+            raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+            const intersects = raycaster.intersectObjects(objects, false);
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                
+                // Left Click: Break
+                if (event.button === 0) {
+                    scene.remove(intersect.object);
+                    objects.splice(objects.indexOf(intersect.object), 1);
+                }
+                // Right Click: Place
+                else if (event.button === 2) {
+                    const voxel = new THREE.Mesh(boxGeo, grassMat);
+                    voxel.position.copy(intersect.object.position);
+                    voxel.position.add(intersect.face.normal.multiplyScalar(50));
+                    scene.add(voxel);
+                    objects.push(voxel);
+                }
+            }
+        });
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+
+            if (controls.isLocked) {
+                // Raycast for highlight
+                raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+                const intersects = raycaster.intersectObjects(objects, false);
+                if(intersects.length > 0 && intersects[0].distance < 300) {
+                    highlightMesh.visible = true;
+                    highlightMesh.position.copy(intersects[0].object.position);
+                } else {
+                    highlightMesh.visible = false;
+                }
+
+                // Physics Movement
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+                velocity.y -= 9.8 * 100.0 * delta; // Gravity
+
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) velocity.z -= direction.z * 4000.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 4000.0 * delta;
+
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+                controls.getObject().position.y += (velocity.y * delta); 
+
+                // Simple Floor Collision
+                if (controls.getObject().position.y < 50) {
+                    velocity.y = 0;
+                    controls.getObject().position.y = 50;
+                    canJump = true;
+                }
+            }
+
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>
